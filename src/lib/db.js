@@ -2,12 +2,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import Database from 'better-sqlite3';
+import { resolveDbFile } from './db-path.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-const DB_FILE = process.env.DATABASE_FILE
-  ? path.resolve(process.env.DATABASE_FILE)
-  : path.join(__dirname, '..', '..', 'data', 'viagem.db');
+const DB_FILE = resolveDbFile();
 
 // Garante que a pasta de dados existe antes de abrir o ficheiro SQLite
 fs.mkdirSync(path.dirname(DB_FILE), { recursive: true });

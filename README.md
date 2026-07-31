@@ -94,6 +94,60 @@ docker compose up -d --build
 
 A base de dados vive no volume `viagem-data` e não é tocada pelas actualizações.
 
+## Instalação num painel (Coolify, Dokploy, CapRover…)
+
+Se estiveres a usar um painel em vez do `docker compose` à mão, atenção a isto:
+
+**O ficheiro `.env` não existe no servidor.** Está no `.gitignore`, por isso
+nunca é clonado. As variáveis têm de ser definidas na interface do painel, na
+secção *Environment Variables*. No mínimo:
+
+| Variável         | Valor                                    |
+| ---------------- | ---------------------------------------- |
+| `SESSION_SECRET` | 96 caracteres aleatórios (ver abaixo)    |
+| `BASE_URL`       | `https://viagem.oteudominio.pt`          |
+| `TZ`             | `Europe/Lisbon`                          |
+
+```bash
+node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
+```
+
+Sem `SESSION_SECRET` a app recusa-se a arrancar e o painel entra em ciclo de
+reinícios até desistir. É propositado: arrancar com um segredo aleatório faria
+com que todas as sessões caíssem a cada reinício, o que dá um bug muito mais
+difícil de perceber do que uma recusa clara no arranque.
+
+**Volume persistente:** monta um volume em `/data`. Sem isso a base de dados
+desaparece a cada actualização.
+
+**HTTPS:** o painel trata do certificado. Confirma que está activo antes de
+testares o login — os cookies de sessão são `Secure` e não sobrevivem a HTTP.
+
+### O contentor reinicia sem parar
+
+O motivo está sempre escrito nas primeiras linhas do log do arranque. Se o
+separador *Logs* aparecer vazio, é porque o contentor já morreu e não há nada
+a correr — procura antes no log do **deployment**, ou reinicia e lê o log logo
+nos primeiros segundos.
+
+A app escreve um bloco explícito a dizer o que falta:
+
+```
+====================================================================
+  A APP NÃO ARRANCOU — configuração incompleta
+====================================================================
+
+  1. Falta a variável SESSION_SECRET
+     ...
+```
+
+Os dois motivos habituais são `SESSION_SECRET` em falta e a pasta `/data` sem
+permissão de escrita para o utilizador `node` do contentor. Se for o segundo:
+
+```bash
+docker compose exec -u root viagem chown -R node:node /data
+```
+
 ## Cópias de segurança
 
 Tudo está num ficheiro SQLite. Para uma cópia consistente com a app a correr:

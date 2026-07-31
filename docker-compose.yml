@@ -4,10 +4,19 @@ services:
     image: viagem:latest
     container_name: viagem
     restart: unless-stopped
-    env_file: .env
+    env_file:
+      # Opcional: em painéis como o Coolify as variáveis vêm da interface,
+      # e o .env nem sequer existe no servidor (está no .gitignore).
+      - path: .env
+        required: false
     environment:
       NODE_ENV: production
       DATABASE_FILE: /data/viagem.db
+      # Obrigatório. Sem isto a app não arranca — ver README.
+      SESSION_SECRET: ${SESSION_SECRET:?define SESSION_SECRET no .env ou no ambiente}
+      # URL público, usado nos links de partilha dos passeios.
+      BASE_URL: ${BASE_URL:-}
+      APP_NAME: ${APP_NAME:-Viagem}
       # Fuso horário do contentor: afecta as horas mostradas no mural.
       TZ: ${TZ:-Europe/Lisbon}
     volumes:
