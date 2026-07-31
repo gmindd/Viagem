@@ -13,9 +13,33 @@ export function checkEnvironment({ env = process.env, dbFile } = {}) {
 
   checkSessionSecret(env, isProduction, errors, warnings);
   checkDataDirectory(dbFile, errors);
+  checkStorageIsPersistent(env, isProduction, warnings);
   checkBaseUrl(env, isProduction, warnings);
 
   return { errors, warnings, isProduction };
+}
+
+/**
+ * Sem DATABASE_FILE a base de dados fica dentro da pasta da app, que num
+ * contentor desaparece a cada redeploy. Como a app arranca à mesma, a perda
+ * de dados só se nota quando já é tarde — daí o aviso ser explícito.
+ */
+function checkStorageIsPersistent(env, isProduction, warnings) {
+  if (!isProduction || env.DATABASE_FILE) return;
+
+  warnings.push({
+    title: 'A base de dados não está num volume persistente',
+    detail:
+      'DATABASE_FILE não está definido, por isso os dados ficam dentro da pasta\n' +
+      'da aplicação. Num contentor isso significa perder todas as contas e\n' +
+      'passeios em cada redeploy, sem qualquer aviso.\n' +
+      'Monta um volume e aponta a app para lá:\n' +
+      '    volume:  /data\n' +
+      '    variável: DATABASE_FILE=/data/viagem.db\n' +
+      'Nota: com o build pack Nixpacks o Dockerfile deste repositório é\n' +
+      'ignorado, incluindo o volume que ele prepara. Muda o build pack para\n' +
+      'Dockerfile para usar a configuração pensada para produção.'
+  });
 }
 
 /** O segredo das sessões tem de ser fixo e longo em produção. */

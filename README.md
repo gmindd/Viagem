@@ -96,7 +96,17 @@ A base de dados vive no volume `viagem-data` e não é tocada pelas actualizaç�
 
 ## Instalação num painel (Coolify, Dokploy, CapRover…)
 
-Se estiveres a usar um painel em vez do `docker compose` à mão, atenção a isto:
+**Escolhe o build pack Dockerfile, não o Nixpacks.** Os painéis costumam
+detectar "projecto Node" e usar Nixpacks por omissão, o que ignora por completo
+o Dockerfile deste repositório — e com ele o volume de dados, o healthcheck e o
+utilizador não-root. No Coolify: *Configuration* → *Build Pack* → **Dockerfile**.
+
+Com Nixpacks a app até arranca, mas a base de dados fica dentro do contentor e
+**desaparece a cada redeploy**. Se preferires mesmo ficar com Nixpacks, monta um
+volume em `/data` e define `DATABASE_FILE=/data/viagem.db` à mão — a app avisa
+no arranque enquanto isso não estiver feito.
+
+Restantes pontos de atenção:
 
 **O ficheiro `.env` não existe no servidor.** Está no `.gitignore`, por isso
 nunca é clonado. As variáveis têm de ser definidas na interface do painel, na
