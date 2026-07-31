@@ -37,7 +37,10 @@ RUN mkdir -p /data && chown -R node:node /data /app
 USER node
 EXPOSE 3000
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD wget --spider -q http://127.0.0.1:3000/healthz || exit 1
+# Segue a variável PORT: painéis como o Coolify injectam a porta deles, e um
+# valor fixo aqui faria o healthcheck sondar uma porta onde a app não escuta.
+# Forma shell (sem JSON) para o ${PORT} ser expandido em cada execução.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+  CMD wget --spider -q "http://127.0.0.1:${PORT:-3000}/healthz" || exit 1
 
 CMD ["node", "src/server.js"]
