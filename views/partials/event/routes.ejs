@@ -1,0 +1,108 @@
+<section class="panel" id="percursos" aria-labelledby="titulo-percursos">
+  <h2 id="titulo-percursos">
+    Percursos
+    <% if (totals.n) { %><span class="counter"><%= totals.n %></span><% } %>
+  </h2>
+
+  <% if (totals.n) { %>
+    <ul class="totals">
+      <li class="total">
+        <span class="total__value"><%= formatKm(totals.distance_km) %></span>
+        <span class="total__label">km no total</span>
+      </li>
+      <li class="total">
+        <span class="total__value"><%= totals.elevation_m %></span>
+        <span class="total__label">m de subida</span>
+      </li>
+      <li class="total">
+        <span class="total__value"><%= totals.n %></span>
+        <span class="total__label">etapa<%= totals.n === 1 ? '' : 's' %></span>
+      </li>
+    </ul>
+  <% } %>
+
+  <% if (routes.length) { %>
+    <ul class="routes">
+      <% let diaActual = null; %>
+      <% routes.forEach((r) => { %>
+        <% if (r.day_number !== diaActual) { diaActual = r.day_number; %>
+          <li class="routes__day">
+            <%= r.day_number ? `Dia ${r.day_number}` : 'Sem dia atribuído' %>
+          </li>
+        <% } %>
+        <li class="route">
+          <div class="route__body">
+            <p class="route__title"><%= r.title %></p>
+            <% if (r.notes) { %><p class="route__notes"><%= r.notes %></p><% } %>
+            <p class="route__meta">
+              <% if (r.distance_km) { %><span><%= formatKm(r.distance_km) %> km</span><% } %>
+              <% if (r.elevation_m) { %><span><%= r.elevation_m %> m D+</span><% } %>
+              <% if (r.uploader_name) { %><span class="muted">por <%= r.uploader_name %></span><% } %>
+            </p>
+          </div>
+
+          <div class="route__actions">
+            <% if (r.file_name) { %>
+              <a class="btn btn--ghost btn--sm" href="/e/<%= event.slug %>/percursos/<%= r.id %>/gpx">GPX</a>
+            <% } %>
+            <% if (r.external_url) { %>
+              <a class="btn btn--ghost btn--sm" href="<%= r.external_url %>"
+                 target="_blank" rel="noopener noreferrer nofollow">Abrir</a>
+            <% } %>
+            <% if (isOwner) { %>
+              <form method="post" action="/e/<%= event.slug %>/percursos/<%= r.id %>/apagar">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <button class="link-button" type="submit" data-confirm="Apagar o percurso <%= r.title %>?">Apagar</button>
+              </form>
+            <% } %>
+          </div>
+        </li>
+      <% }) %>
+    </ul>
+  <% } else { %>
+    <p class="muted">Ainda não há percursos. <% if (isOwner) { %>Carrega os ficheiros GPX de cada etapa.<% } %></p>
+  <% } %>
+
+  <% if (isOwner) { %>
+    <details class="disclosure">
+      <summary>Adicionar percurso</summary>
+      <form class="form" method="post" action="/e/<%= event.slug %>/percursos" enctype="multipart/form-data">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+        <div class="field-row">
+          <div class="field">
+            <label for="route_title">Nome da etapa</label>
+            <input type="text" id="route_title" name="title" maxlength="120"
+                   placeholder="Dia 2 — Évora a Monsaraz">
+          </div>
+          <div class="field">
+            <label for="day_number">Dia da viagem <span class="optional">(opcional)</span></label>
+            <input type="number" id="day_number" name="day_number" min="1" step="1" placeholder="1">
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="gpx">Ficheiro GPX</label>
+          <input type="file" id="gpx" name="gpx" accept=".gpx,application/gpx+xml,text/xml">
+          <p class="field-hint">
+            Máximo 10 MB. A distância e o desnível são calculados a partir do ficheiro.
+          </p>
+        </div>
+
+        <div class="field">
+          <label for="external_url">Ou link do percurso</label>
+          <input type="url" id="external_url" name="external_url"
+                 placeholder="https://www.komoot.com/tour/...">
+        </div>
+
+        <div class="field">
+          <label for="route_notes">Notas <span class="optional">(opcional)</span></label>
+          <input type="text" id="route_notes" name="notes" maxlength="500"
+                 placeholder="Almoço em Monsaraz, água no km 40">
+        </div>
+
+        <button class="btn btn--secondary" type="submit">Adicionar percurso</button>
+      </form>
+    </details>
+  <% } %>
+</section>

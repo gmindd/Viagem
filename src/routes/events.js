@@ -2,71 +2,117 @@ import express from 'express';
 import bcrypt from 'bcryptjs';
 import { db } from '../lib/db.js';
 import { requireAuth } from '../middleware/auth.js';
+import { requireOpen, requireMember, requireOwner } from '../middleware/event-guards.js';
 import {
   generateSlug,
   cleanText,
   toNumberOrNull,
   safeUrl,
   DIFFICULTIES,
-  BIKE_TYPES
+  BIKE_TYPES,
+  PHASES,
+  VISIBILITIES,
+  JOIN_POLICIES,
+  allowedJoinPolicies
 } from '../lib/helpers.js';
+import {
+  isOwner as checkOwner,
+  isMember as checkMember,
+  canOpen,
+  joinOptionFor,
+  joinRequestFor
+} from '../lib/access.js';
+import { router as availabilityRouter, buildAvailability } from './availability.js';
+import {
+  router as gpxRouter,
+  gpxUploadErrorHandler,
+  listRoutes,
+  routeTotals,
+  removeEventGpxDir
+} from './routes-gpx.js';
+import {
+  router as membershipRouter,
+  ownerRouter as membershipOwnerRouter,
+  listPendingRequests,
+  countPendingRequests,
+  listInvites,
+  inviteEntryRoute
+} from './membership.js';
 
 export const router = express.Router();
 
 /* ------------------------------------------------------------------ */
-/* Consultas preparadas                                                */
+/* Consultas                                                           */
 /* ------------------------------------------------------------------ */
 
 const insertEvent = db.prepare(
-  `INSERT INTO events (owner_id, slug, title, description, start_date, start_time, end_date,
-                       meeting_point, distance_km, elevation_m, difficulty, bike_type,
-                       route_url, max_participants, visibility, access_password_hash)
-   VALUES (@owner_id, @slug, @title, @description, @start_date, @start_time, @end_date,
-           @meeting_point, @distance_km, @elevation_m, @difficulty, @bike_type,
-           @route_url, @max_participants, @visibility, @access_password_hash)`
+  `INSERT INTO events (owner_id, slug, title, description, phase, start_date, start_time, end_date,
+                       availability_start, availability_end, meeting_point, distance_km, elevation_m,
+                       difficulty, bike_type, route_url, max_participants, visibility, join_policy,
+                       access_password_hash)
+   VALUES (@owner_id, @slug, @title, @description, @phase, @start_date, @start_time, @end_date,
+           @availability_start, @availability_end, @meeting_point, @distance_km, @elevation_m,
+           @difficulty, @bike_type, @route_url, @max_participants, @visibility, @join_policy,
+           @access_password_hash)`
 );
 
 const updateEvent = db.prepare(
-  `UPDATE events SET title = @title, description = @description, start_date = @start_date,
-                     start_time = @start_time, end_date = @end_date, meeting_point = @meeting_point,
-                     distance_km = @distance_km, elevation_m = @elevation_m, difficulty = @difficulty,
-                     bike_type = @bike_type, route_url = @route_url,
-                     max_participants = @max_participants, visibility = @visibility,
+  `UPDATE events SET title = @title, description = @description, phase = @phase,
+                     start_date = @start_date, start_time = @start_time, end_date = @end_date,
+                     availability_start = @availability_start, availability_end = @availability_end,
+                     meeting_point = @meeting_point, distance_km = @distance_km,
+                     elevation_m = @elevation_m, difficulty = @difficulty, bike_type = @bike_type,
+                     route_url = @route_url, max_participants = @max_participants,
+                     visibility = @visibility, join_policy = @join_policy,
                      access_password_hash = @access_password_hash, updated_at = datetime('now')
    WHERE id = @id`
 );
 
 const findEventBySlug = db.prepare('SELECT * FROM events WHERE slug = ?');
-const deleteEvent = db.prepare('DELETE FROM events WHERE id = ?');
+const deleteEventRow = db.prepare('DELETE FROM events WHERE id = ?');
+
+const OWNED_COLUMNS = `e.*,
+  (SELECT COUNT(*) FROM participants p WHERE p.event_id = e.id) AS member_count,
+  (SELECT COUNT(*) FROM participants p WHERE p.event_id = e.id AND p.status = 'going') AS going_count,
+  (SELECT COUNT(*) FROM join_requests r WHERE r.event_id = e.id AND r.status = 'pendente') AS pending_count`;
 
 const listOwnedEvents = db.prepare(
-  `SELECT e.*, (SELECT COUNT(*) FROM participants p WHERE p.event_id = e.id AND p.status = 'going') AS going_count
-   FROM events e WHERE e.owner_id = ? ORDER BY e.start_date ASC, e.start_time ASC`
+  `SELECT ${OWNED_COLUMNS} FROM events e WHERE e.owner_id = ?
+   ORDER BY CASE WHEN e.start_date = '' THEN 1 ELSE 0 END, e.start_date ASC`
 );
 
 const listJoinedEvents = db.prepare(
-  `SELECT e.*, p.status AS my_status, u.name AS owner_name,
-          (SELECT COUNT(*) FROM participants p2 WHERE p2.event_id = e.id AND p2.status = 'going') AS going_count
+  `SELECT ${OWNED_COLUMNS}, p.status AS my_status, u.name AS owner_name
    FROM participants p
    JOIN events e ON e.id = p.event_id
    JOIN users  u ON u.id = e.owner_id
    WHERE p.user_id = ? AND e.owner_id != ?
-   ORDER BY e.start_date ASC, e.start_time ASC`
+   ORDER BY CASE WHEN e.start_date = '' THEN 1 ELSE 0 END, e.start_date ASC`
+);
+
+// Listagem pública: só público e privado, nunca secreto
+const listPublicEvents = db.prepare(
+  `SELECT ${OWNED_COLUMNS}, u.name AS owner_name
+   FROM events e JOIN users u ON u.id = e.owner_id
+   WHERE e.visibility IN ('publico', 'privado')
+     AND e.phase != 'concluido'
+     AND (e.start_date = '' OR e.start_date >= date('now'))
+   ORDER BY CASE WHEN e.start_date = '' THEN 1 ELSE 0 END, e.start_date ASC
+   LIMIT 60`
 );
 
 const listParticipants = db.prepare(
-  `SELECT p.status, p.note, p.created_at, u.id AS user_id, u.name, u.email, u.phone, u.contact_other
+  `SELECT p.status, p.note, p.created_at, p.joined_via,
+          u.id AS user_id, u.name, u.email, u.phone, u.contact_other
    FROM participants p JOIN users u ON u.id = p.user_id
    WHERE p.event_id = ?
    ORDER BY CASE p.status WHEN 'going' THEN 0 WHEN 'maybe' THEN 1 ELSE 2 END, p.created_at ASC`
 );
 
 const getParticipation = db.prepare('SELECT * FROM participants WHERE event_id = ? AND user_id = ?');
-const upsertParticipation = db.prepare(
-  `INSERT INTO participants (event_id, user_id, status, note)
-   VALUES (@event_id, @user_id, @status, @note)
-   ON CONFLICT(event_id, user_id)
-   DO UPDATE SET status = @status, note = @note, updated_at = datetime('now')`
+const updateStatus = db.prepare(
+  `UPDATE participants SET status = ?, note = ?, updated_at = datetime('now')
+   WHERE event_id = ? AND user_id = ?`
 );
 const removeParticipation = db.prepare('DELETE FROM participants WHERE event_id = ? AND user_id = ?');
 
@@ -75,105 +121,100 @@ const listComments = db.prepare(
    FROM comments c JOIN users u ON u.id = c.user_id
    WHERE c.event_id = ? ORDER BY c.created_at ASC`
 );
-const insertComment = db.prepare(
-  'INSERT INTO comments (event_id, user_id, body) VALUES (?, ?, ?)'
-);
+const insertComment = db.prepare('INSERT INTO comments (event_id, user_id, body) VALUES (?, ?, ?)');
 const findComment = db.prepare('SELECT * FROM comments WHERE id = ?');
 const deleteComment = db.prepare('DELETE FROM comments WHERE id = ?');
 
 const getOwner = db.prepare('SELECT id, name, email, phone, contact_other FROM users WHERE id = ?');
 
+// Quantos participantes tem a viagem. Necessário para a ficha resumida que
+// quem ainda não é membro vê, onde a lista de participantes está escondida.
+const countMembers = db.prepare('SELECT COUNT(*) AS n FROM participants WHERE event_id = ?');
+
 /* ------------------------------------------------------------------ */
-/* Middleware de carregamento e controlo de acesso                     */
+/* Middleware                                                          */
 /* ------------------------------------------------------------------ */
 
-/** Carrega o evento a partir do slug do URL ou devolve 404. */
+/** Carrega o evento e o papel de quem o está a ver. */
 function loadEvent(req, res, next) {
   const event = findEventBySlug.get(req.params.slug);
   if (!event) {
     return res.status(404).render('error', {
-      title: 'Evento não encontrado',
+      title: 'Viagem não encontrada',
       status: 404,
-      message: 'Este link não corresponde a nenhum evento. Confirma com quem to enviou.'
+      message: 'Este link não corresponde a nenhuma viagem. Confirma com quem to enviou.'
     });
   }
   req.event = event;
-  req.isOwner = Boolean(req.user && req.user.id === event.owner_id);
+  req.isOwner = checkOwner(event, req.user);
+  req.isMember = checkMember(event, req.user);
   return next();
 }
 
-/** True se a sessão já desbloqueou este evento protegido por palavra-passe. */
-function hasUnlocked(req, event) {
-  return Boolean(req.session.eventAccess?.[event.slug]);
-}
 
-/**
- * Garante acesso ao evento: eventos livres são sempre visíveis com o link;
- * eventos protegidos exigem a palavra-passe (o dono passa sempre).
- */
-function requireEventAccess(req, res, next) {
-  const { event } = req;
-  if (event.visibility === 'free' || req.isOwner || hasUnlocked(req, event)) return next();
 
-  return res.status(401).render('events/unlock', {
-    title: event.title,
-    event,
-    errors: []
-  });
-}
-
-/** Só o criador do evento pode editar, apagar ou ver os contactos. */
-function requireOwner(req, res, next) {
-  if (req.isOwner) return next();
-  return res.status(403).render('error', {
-    title: 'Sem permissão',
-    status: 403,
-    message: 'Só quem criou o evento o pode gerir.'
-  });
-}
 
 /* ------------------------------------------------------------------ */
-/* Painel do utilizador                                                */
+/* Painel e listagem pública                                           */
 /* ------------------------------------------------------------------ */
 
 router.get('/painel', requireAuth, (req, res) => {
   res.render('dashboard', {
-    title: 'Os meus passeios',
+    title: 'As minhas viagens',
     owned: listOwnedEvents.all(req.user.id),
     joined: listJoinedEvents.all(req.user.id, req.user.id)
   });
 });
 
+router.get('/viagens', (req, res) => {
+  res.render('discover', {
+    title: 'Viagens a acontecer',
+    events: listPublicEvents.all()
+  });
+});
+
 /* ------------------------------------------------------------------ */
-/* Criar evento                                                        */
+/* Criar                                                               */
 /* ------------------------------------------------------------------ */
+
+const FORM_OPTIONS = {
+  difficulties: DIFFICULTIES,
+  bikeTypes: BIKE_TYPES,
+  phases: PHASES,
+  visibilities: VISIBILITIES,
+  joinPolicies: JOIN_POLICIES
+};
 
 router.get('/eventos/novo', requireAuth, (req, res) => {
   res.render('events/form', {
-    title: 'Novo passeio',
+    title: 'Nova viagem',
     mode: 'create',
     errors: [],
-    values: { visibility: 'free', difficulty: 'moderado', bike_type: 'qualquer' },
-    difficulties: DIFFICULTIES,
-    bikeTypes: BIKE_TYPES
+    values: {
+      phase: 'preparacao',
+      visibility: 'privado',
+      join_policy: 'pedido',
+      difficulty: 'moderado',
+      bike_type: 'qualquer'
+    },
+    ...FORM_OPTIONS
   });
 });
 
 router.post('/eventos/novo', requireAuth, async (req, res) => {
   const { values, errors, accessPassword } = readEventForm(req.body);
 
-  if (values.visibility === 'password' && !accessPassword) {
-    errors.push('Define a palavra-passe do evento (ou escolhe "Aberto a quem tiver o link").');
+  if (values.join_policy === 'palavra_passe' && !accessPassword) {
+    errors.push('Define a palavra-passe da viagem.');
   }
 
   if (errors.length) {
     return res.status(400).render('events/form', {
-      title: 'Novo passeio',
+      title: 'Nova viagem',
       mode: 'create',
       errors,
       values,
-      difficulties: DIFFICULTIES,
-      bikeTypes: BIKE_TYPES
+      ...FORM_OPTIONS
     });
   }
 
@@ -183,20 +224,20 @@ router.post('/eventos/novo', requireAuth, async (req, res) => {
     owner_id: req.user.id,
     slug,
     access_password_hash:
-      values.visibility === 'password' ? await bcrypt.hash(accessPassword, 12) : null
+      values.join_policy === 'palavra_passe' ? await bcrypt.hash(accessPassword, 12) : null
   });
 
-  res.flash('success', 'Passeio criado. Partilha o link com o pessoal!');
+  res.flash('success', 'Viagem criada. Partilha o link com o pessoal!');
   return res.redirect(`/e/${slug}`);
 });
 
 /* ------------------------------------------------------------------ */
-/* Página pública do evento (link de partilha)                         */
+/* Página da viagem                                                    */
 /* ------------------------------------------------------------------ */
 
-router.get('/e/:slug', loadEvent, requireEventAccess, (req, res) => {
+router.get('/e/:slug', loadEvent, requireOpen, (req, res) => {
   const { event } = req;
-  const participants = listParticipants.all(event.id);
+  const participants = req.isMember ? listParticipants.all(event.id) : [];
   const goingCount = participants.filter((p) => p.status === 'going').length;
 
   res.render('events/show', {
@@ -204,45 +245,34 @@ router.get('/e/:slug', loadEvent, requireEventAccess, (req, res) => {
     event,
     owner: getOwner.get(event.owner_id),
     isOwner: req.isOwner,
+    isMember: req.isMember,
+    joinOption: joinOptionFor(event, req.user, req.session),
+    myRequest: joinRequestFor(event, req.user),
     participants,
     goingCount,
+    memberCount: countMembers.get(event.id).n,
     isFull: event.max_participants ? goingCount >= event.max_participants : false,
     myParticipation: req.user ? getParticipation.get(event.id, req.user.id) : null,
-    comments: listComments.all(event.id),
+    comments: req.isMember ? listComments.all(event.id) : [],
+    routes: req.isMember ? listRoutes.all(event.id) : [],
+    totals: routeTotals.get(event.id),
+    availability: req.isMember
+      ? buildAvailability(event, req.user)
+      : { active: false, months: [], byDate: new Map(), mine: new Set(), best: [], respondents: 0 },
+    pendingRequests: req.isOwner ? listPendingRequests.all(event.id) : [],
     shareUrl: `${req.appBaseUrl}/e/${event.slug}`
   });
 });
 
-// Desbloqueio de um evento protegido por palavra-passe
-router.post('/e/:slug/acesso', loadEvent, async (req, res) => {
-  const { event } = req;
-  const password = String(req.body.event_password ?? '');
-  const ok = event.access_password_hash
-    ? await bcrypt.compare(password, event.access_password_hash)
-    : true;
-
-  if (!ok) {
-    return res.status(401).render('events/unlock', {
-      title: event.title,
-      event,
-      errors: ['Palavra-passe errada.']
-    });
-  }
-
-  req.session.eventAccess = { ...(req.session.eventAccess ?? {}), [event.slug]: true };
-  return res.redirect(`/e/${event.slug}`);
-});
-
 /* ------------------------------------------------------------------ */
-/* Inscrições                                                          */
+/* Inscrição (estado) — só membros                                     */
 /* ------------------------------------------------------------------ */
 
-router.post('/e/:slug/inscricao', loadEvent, requireAuth, requireEventAccess, (req, res) => {
+router.post('/e/:slug/estado', loadEvent, requireAuth, requireOpen, requireMember, (req, res) => {
   const { event } = req;
   const status = ['going', 'maybe', 'out'].includes(req.body.status) ? req.body.status : 'going';
   const note = cleanText(req.body.note, 200);
 
-  // Verifica o limite de vagas apenas para quem ainda não está confirmado
   if (status === 'going' && event.max_participants) {
     const current = getParticipation.get(event.id, req.user.id);
     if (current?.status !== 'going') {
@@ -254,30 +284,22 @@ router.post('/e/:slug/inscricao', loadEvent, requireAuth, requireEventAccess, (r
     }
   }
 
-  upsertParticipation.run({ event_id: event.id, user_id: req.user.id, status, note });
-  res.flash('success', 'Inscrição actualizada.');
+  updateStatus.run(status, note, event.id, req.user.id);
+  res.flash('success', 'Actualizámos a tua resposta.');
   return res.redirect(`/e/${event.slug}#participantes`);
 });
 
-router.post('/e/:slug/inscricao/cancelar', loadEvent, requireAuth, (req, res) => {
-  removeParticipation.run(req.event.id, req.user.id);
-  res.flash('success', 'Saíste da lista deste passeio.');
-  return res.redirect(`/e/${req.event.slug}`);
-});
-
-// O organizador pode remover alguém da lista
 router.post('/e/:slug/participantes/:userId/remover', loadEvent, requireAuth, requireOwner, (req, res) => {
   removeParticipation.run(req.event.id, Number(req.params.userId));
   res.flash('success', 'Participante removido.');
   return res.redirect(`/e/${req.event.slug}#participantes`);
 });
 
-// Exportação dos contactos dos inscritos (só para o organizador)
 router.get('/e/:slug/participantes.csv', loadEvent, requireAuth, requireOwner, (req, res) => {
   const rows = listParticipants.all(req.event.id);
-  const header = ['Nome', 'Email', 'Telemóvel', 'Outro contacto', 'Estado', 'Nota'];
+  const header = ['Nome', 'Email', 'Telemóvel', 'Outro contacto', 'Estado', 'Entrou por', 'Nota'];
   const csv = [header, ...rows.map((r) => [
-    r.name, r.email, r.phone, r.contact_other, r.status, r.note
+    r.name, r.email, r.phone, r.contact_other, r.status, r.joined_via, r.note
   ])]
     .map((cols) => cols.map(csvCell).join(','))
     .join('\r\n');
@@ -288,22 +310,18 @@ router.get('/e/:slug/participantes.csv', loadEvent, requireAuth, requireOwner, (
 });
 
 /* ------------------------------------------------------------------ */
-/* Mural de mensagens                                                  */
+/* Mural — só membros                                                  */
 /* ------------------------------------------------------------------ */
 
-router.post('/e/:slug/comentarios', loadEvent, requireAuth, requireEventAccess, (req, res) => {
+router.post('/e/:slug/comentarios', loadEvent, requireAuth, requireOpen, requireMember, (req, res) => {
   const body = cleanText(req.body.body, 1000);
-  if (body) {
-    insertComment.run(req.event.id, req.user.id, body);
-  } else {
-    res.flash('error', 'A mensagem estava vazia.');
-  }
+  if (body) insertComment.run(req.event.id, req.user.id, body);
+  else res.flash('error', 'A mensagem estava vazia.');
   return res.redirect(`/e/${req.event.slug}#mural`);
 });
 
 router.post('/e/:slug/comentarios/:id/apagar', loadEvent, requireAuth, (req, res) => {
   const comment = findComment.get(Number(req.params.id));
-  // Apaga o autor da mensagem ou o organizador do evento
   if (comment && comment.event_id === req.event.id &&
       (comment.user_id === req.user.id || req.isOwner)) {
     deleteComment.run(comment.id);
@@ -312,71 +330,100 @@ router.post('/e/:slug/comentarios/:id/apagar', loadEvent, requireAuth, (req, res
 });
 
 /* ------------------------------------------------------------------ */
-/* Editar e apagar                                                     */
+/* Definições da viagem                                                */
 /* ------------------------------------------------------------------ */
 
-router.get('/e/:slug/editar', loadEvent, requireAuth, requireOwner, (req, res) => {
-  res.render('events/form', {
-    title: `Editar — ${req.event.title}`,
-    mode: 'edit',
+router.get('/e/:slug/definicoes', loadEvent, requireAuth, requireOwner, (req, res) => {
+  res.render('events/settings', {
+    title: `Definições — ${req.event.title}`,
+    event: req.event,
     errors: [],
     values: req.event,
-    difficulties: DIFFICULTIES,
-    bikeTypes: BIKE_TYPES
+    invites: listInvites.all(req.event.id),
+    pendingCount: countPendingRequests.get(req.event.id).n,
+    inviteBase: `${req.appBaseUrl}/convite`,
+    ...FORM_OPTIONS
   });
 });
 
-router.post('/e/:slug/editar', loadEvent, requireAuth, requireOwner, async (req, res) => {
+router.post('/e/:slug/definicoes', loadEvent, requireAuth, requireOwner, async (req, res) => {
   const { event } = req;
   const { values, errors, accessPassword } = readEventForm(req.body);
 
-  // Ao mudar para "protegido" é preciso palavra-passe; se já existia, pode ficar como está
-  const needsNewPassword = values.visibility === 'password' && !event.access_password_hash;
-  if (needsNewPassword && !accessPassword) {
-    errors.push('Define a palavra-passe do evento.');
-  }
+  const needsPassword = values.join_policy === 'palavra_passe' && !event.access_password_hash;
+  if (needsPassword && !accessPassword) errors.push('Define a palavra-passe da viagem.');
 
   if (errors.length) {
-    return res.status(400).render('events/form', {
-      title: `Editar — ${event.title}`,
-      mode: 'edit',
+    return res.status(400).render('events/settings', {
+      title: `Definições — ${event.title}`,
+      event,
       errors,
       values: { ...event, ...values },
-      difficulties: DIFFICULTIES,
-      bikeTypes: BIKE_TYPES
+      invites: listInvites.all(event.id),
+      pendingCount: countPendingRequests.get(event.id).n,
+      inviteBase: `${req.appBaseUrl}/convite`,
+      ...FORM_OPTIONS
     });
   }
 
   let access_password_hash = null;
-  if (values.visibility === 'password') {
+  if (values.join_policy === 'palavra_passe') {
     access_password_hash = accessPassword
       ? await bcrypt.hash(accessPassword, 12)
       : event.access_password_hash;
   }
 
   updateEvent.run({ ...values, id: event.id, access_password_hash });
-  res.flash('success', 'Passeio actualizado.');
+  res.flash('success', 'Definições guardadas.');
   return res.redirect(`/e/${event.slug}`);
 });
 
 router.post('/e/:slug/apagar', loadEvent, requireAuth, requireOwner, (req, res) => {
-  deleteEvent.run(req.event.id);
-  res.flash('success', 'Passeio apagado.');
+  removeEventGpxDir(req.event.id);
+  deleteEventRow.run(req.event.id);
+  res.flash('success', 'Viagem apagada.');
   return res.redirect('/painel');
 });
+
+/* ------------------------------------------------------------------ */
+/* Sub-routers                                                         */
+/* ------------------------------------------------------------------ */
+
+// Cada sub-router declara os seus próprios guardas em cada rota (ver
+// middleware/event-guards.js). Aqui só se garante o evento e a sessão, para
+// que um pedido que não pertença a este router possa seguir para o seguinte.
+const eventContext = [loadEvent, requireAuth];
+
+router.use('/e/:slug', eventContext, membershipOwnerRouter);
+router.use('/e/:slug', eventContext, membershipRouter);
+router.use('/e/:slug', eventContext, availabilityRouter);
+router.use('/e/:slug', eventContext, gpxRouter, gpxUploadErrorHandler);
+
+// Entrada por convite: o token identifica a viagem
+router.get('/convite/:token', inviteEntryRoute);
 
 /* ------------------------------------------------------------------ */
 /* Auxiliares                                                          */
 /* ------------------------------------------------------------------ */
 
-/** Lê e valida os campos do formulário de evento. */
+/** Lê e valida o formulário de viagem, partilhado entre criar e definições. */
 function readEventForm(body) {
+  const phase = PHASES.some((p) => p.value === body.phase) ? body.phase : 'preparacao';
+  const visibility = VISIBILITIES.some((v) => v.value === body.visibility) ? body.visibility : 'privado';
+
+  // Uma viagem pública não pode ter entrada condicionada
+  const permitted = allowedJoinPolicies(visibility);
+  const joinPolicy = permitted.includes(body.join_policy) ? body.join_policy : permitted[0];
+
   const values = {
     title: cleanText(body.title, 120),
     description: cleanText(body.description, 4000),
+    phase,
     start_date: cleanText(body.start_date, 10),
     start_time: cleanText(body.start_time, 5),
     end_date: cleanText(body.end_date, 10),
+    availability_start: cleanText(body.availability_start, 10),
+    availability_end: cleanText(body.availability_end, 10),
     meeting_point: cleanText(body.meeting_point, 200),
     distance_km: toNumberOrNull(body.distance_km),
     elevation_m: toNumberOrNull(body.elevation_m),
@@ -384,21 +431,34 @@ function readEventForm(body) {
     bike_type: BIKE_TYPES.some((b) => b.value === body.bike_type) ? body.bike_type : 'qualquer',
     route_url: safeUrl(body.route_url),
     max_participants: toNumberOrNull(body.max_participants),
-    visibility: body.visibility === 'password' ? 'password' : 'free'
+    visibility,
+    join_policy: joinPolicy
   };
   const accessPassword = String(body.access_password ?? '').trim();
   const errors = [];
+  const isDate = (v) => /^\d{4}-\d{2}-\d{2}$/.test(v);
 
-  if (values.title.length < 3) errors.push('Dá um nome ao passeio.');
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(values.start_date)) errors.push('Indica a data de início.');
-  if (values.end_date && values.end_date < values.start_date) {
+  if (values.title.length < 3) errors.push('Dá um nome à viagem.');
+
+  if (phase === 'datas') {
+    // Na fase de datas ainda não há data marcada: o que interessa é a janela
+    if (!isDate(values.availability_start) || !isDate(values.availability_end)) {
+      errors.push('Indica a janela de datas a considerar (de e até).');
+    } else if (values.availability_end < values.availability_start) {
+      errors.push('A janela de datas termina antes de começar.');
+    }
+  } else if (!isDate(values.start_date)) {
+    errors.push('Indica a data da viagem.');
+  }
+
+  if (values.end_date && values.start_date && values.end_date < values.start_date) {
     errors.push('A data de fim é anterior à data de início.');
   }
   if (values.max_participants !== null && values.max_participants < 1) {
     errors.push('O limite de participantes tem de ser pelo menos 1.');
   }
   if (accessPassword && accessPassword.length < 4) {
-    errors.push('A palavra-passe do evento precisa de pelo menos 4 caracteres.');
+    errors.push('A palavra-passe da viagem precisa de pelo menos 4 caracteres.');
   }
   if (body.route_url && !values.route_url) {
     errors.push('O link do percurso tem de começar por http:// ou https://.');
@@ -407,7 +467,7 @@ function readEventForm(body) {
   return { values, errors, accessPassword };
 }
 
-/** Gera um slug garantidamente livre na base de dados. */
+/** Gera um slug garantidamente livre. */
 function uniqueSlug() {
   for (let i = 0; i < 10; i += 1) {
     const slug = generateSlug();
@@ -416,7 +476,7 @@ function uniqueSlug() {
   return generateSlug(16);
 }
 
-/** Escapa um valor para CSV (aspas duplas e separadores). */
+/** Escapa um valor para CSV. */
 function csvCell(value) {
   const s = String(value ?? '');
   return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;

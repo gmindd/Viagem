@@ -1,0 +1,178 @@
+<fieldset class="fieldset" data-phase-group>
+  <legend>Em que fase está a viagem</legend>
+  <p class="field-hint">Podes mudar a fase a qualquer momento. É ela que decide o que aparece na página.</p>
+
+  <div class="option-cards">
+    <% phases.forEach((p) => { %>
+      <label class="radio-card">
+        <input type="radio" name="phase" value="<%= p.value %>"
+               <%= (values.phase || 'preparacao') === p.value ? 'checked' : '' %> data-phase-option>
+        <span class="radio-card__body">
+          <span class="radio-card__title"><%= p.label %></span>
+          <span class="radio-card__desc"><%= p.description %></span>
+        </span>
+      </label>
+    <% }) %>
+  </div>
+</fieldset>
+
+<fieldset class="fieldset">
+  <legend>O essencial</legend>
+
+  <div class="field">
+    <label for="title">Nome da viagem</label>
+    <input type="text" id="title" name="title" value="<%= values.title || '' %>" required maxlength="120"
+           placeholder="Travessia do Alentejo">
+  </div>
+
+  <!-- Janela de datas: só faz sentido enquanto se combinam disponibilidades -->
+  <div data-when-phase="datas">
+    <div class="field-row">
+      <div class="field">
+        <label for="availability_start">Considerar datas de</label>
+        <input type="date" id="availability_start" name="availability_start"
+               value="<%= values.availability_start || '' %>">
+      </div>
+      <div class="field">
+        <label for="availability_end">até</label>
+        <input type="date" id="availability_end" name="availability_end"
+               value="<%= values.availability_end || '' %>">
+      </div>
+    </div>
+    <p class="field-hint">
+      Cada participante marca no calendário os dias em que pode. Depois escolhes a data
+      com mais gente disponível e a viagem passa à fase seguinte. Máximo 120 dias.
+    </p>
+  </div>
+
+  <!-- Data marcada: a partir da fase de preparação -->
+  <div data-when-phase="preparacao confirmado concluido">
+    <div class="field-row">
+      <div class="field">
+        <label for="start_date">Data de início</label>
+        <input type="date" id="start_date" name="start_date" value="<%= values.start_date || '' %>">
+      </div>
+      <div class="field">
+        <label for="start_time">Hora de encontro</label>
+        <input type="time" id="start_time" name="start_time" value="<%= values.start_time || '' %>">
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="end_date">Data de fim <span class="optional">(viagens de vários dias)</span></label>
+      <input type="date" id="end_date" name="end_date" value="<%= values.end_date || '' %>">
+    </div>
+
+    <div class="field">
+      <label for="meeting_point">Ponto de encontro</label>
+      <input type="text" id="meeting_point" name="meeting_point" value="<%= values.meeting_point || '' %>"
+             maxlength="200" placeholder="Café Central, Largo da Igreja">
+    </div>
+  </div>
+
+  <div class="field">
+    <label for="description">Descrição</label>
+    <textarea id="description" name="description" rows="6" maxlength="4000"
+              placeholder="Ritmo, dormidas, o que levar, plano B se chover…"><%= values.description || '' %></textarea>
+  </div>
+</fieldset>
+
+<fieldset class="fieldset">
+  <legend>Perfil da viagem</legend>
+
+  <div class="field-row">
+    <div class="field">
+      <label for="distance_km">Distância total (km) <span class="optional">(opcional)</span></label>
+      <input type="number" id="distance_km" name="distance_km" value="<%= values.distance_km ?? '' %>"
+             min="0" step="0.1" inputmode="decimal">
+    </div>
+    <div class="field">
+      <label for="elevation_m">Desnível positivo (m)</label>
+      <input type="number" id="elevation_m" name="elevation_m" value="<%= values.elevation_m ?? '' %>"
+             min="0" step="1" inputmode="numeric">
+    </div>
+  </div>
+  <p class="field-hint">Se carregares ficheiros GPX, estes totais são calculados a partir deles.</p>
+
+  <div class="field-row">
+    <div class="field">
+      <label for="difficulty">Dificuldade</label>
+      <select id="difficulty" name="difficulty">
+        <% difficulties.forEach((d) => { %>
+          <option value="<%= d.value %>"<%= values.difficulty === d.value ? ' selected' : '' %>><%= d.label %></option>
+        <% }) %>
+      </select>
+    </div>
+    <div class="field">
+      <label for="bike_type">Tipo de bicicleta</label>
+      <select id="bike_type" name="bike_type">
+        <% bikeTypes.forEach((b) => { %>
+          <option value="<%= b.value %>"<%= values.bike_type === b.value ? ' selected' : '' %>><%= b.label %></option>
+        <% }) %>
+      </select>
+    </div>
+  </div>
+
+  <div class="field">
+    <label for="route_url">Link geral do percurso <span class="optional">(Komoot, Strava…)</span></label>
+    <input type="url" id="route_url" name="route_url" value="<%= values.route_url || '' %>"
+           placeholder="https://www.komoot.com/tour/...">
+  </div>
+
+  <div class="field">
+    <label for="max_participants">Limite de participantes <span class="optional">(vazio = sem limite)</span></label>
+    <input type="number" id="max_participants" name="max_participants"
+           value="<%= values.max_participants ?? '' %>" min="1" step="1" inputmode="numeric">
+  </div>
+</fieldset>
+
+<fieldset class="fieldset" data-visibility-group>
+  <legend>Quem pode ver</legend>
+
+  <div class="option-cards">
+    <% visibilities.forEach((v) => { %>
+      <label class="radio-card">
+        <input type="radio" name="visibility" value="<%= v.value %>"
+               <%= (values.visibility || 'privado') === v.value ? 'checked' : '' %> data-visibility-option>
+        <span class="radio-card__body">
+          <span class="radio-card__title"><%= v.label %></span>
+          <span class="radio-card__desc"><%= v.description %></span>
+        </span>
+      </label>
+    <% }) %>
+  </div>
+</fieldset>
+
+<fieldset class="fieldset" data-join-group>
+  <legend>Como se entra</legend>
+  <p class="field-hint" data-join-note>
+    Independentemente desta escolha, podes sempre convidar pessoas directamente
+    por link de convite, nas definições da viagem.
+  </p>
+
+  <div class="option-cards">
+    <% joinPolicies.forEach((j) => { %>
+      <label class="radio-card" data-join-card="<%= j.value %>">
+        <input type="radio" name="join_policy" value="<%= j.value %>"
+               <%= (values.join_policy || 'pedido') === j.value ? 'checked' : '' %> data-join-option>
+        <span class="radio-card__body">
+          <span class="radio-card__title"><%= j.label %></span>
+          <span class="radio-card__desc"><%= j.description %></span>
+        </span>
+      </label>
+    <% }) %>
+  </div>
+
+  <div class="field" data-password-field>
+    <label for="access_password">Palavra-passe da viagem</label>
+    <input type="password" id="access_password" name="access_password" autocomplete="off" minlength="4"
+           placeholder="<%= values.access_password_hash ? 'Deixa vazio para manter a actual' : 'Mínimo 4 caracteres' %>">
+    <p class="field-hint">
+      <% if (values.access_password_hash) { %>
+        Já existe uma palavra-passe definida. Escreve uma nova só se a quiseres mudar.
+      <% } else { %>
+        Partilha-a com o grupo junto com o link.
+      <% } %>
+    </p>
+  </div>
+</fieldset>

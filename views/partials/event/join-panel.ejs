@@ -1,0 +1,58 @@
+<section class="panel panel--sticky" aria-labelledby="titulo-entrar">
+  <h2 id="titulo-entrar">Participar</h2>
+
+  <% if (joinOption === 'precisa_conta') { %>
+    <p class="muted">Cria conta ou inicia sessão para te juntares a esta viagem.</p>
+    <a class="btn btn--primary btn--block" href="/registar">Criar conta</a>
+    <a class="btn btn--ghost btn--block" href="/entrar">Entrar</a>
+
+  <% } else if (joinOption === 'entrada_directa') { %>
+    <p class="muted">
+      <% if (event.phase === 'datas') { %>
+        Junta-te para marcares no calendário os dias em que podes.
+      <% } else { %>
+        Junta-te para veres os percursos, o ponto de encontro e o mural.
+      <% } %>
+    </p>
+    <form method="post" action="/e/<%= event.slug %>/entrar">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <button class="btn btn--primary btn--block" type="submit">Juntar-me à viagem</button>
+    </form>
+
+  <% } else if (joinOption === 'precisa_palavra_passe') { %>
+    <p class="muted">Esta viagem é reservada. Escreve a palavra-passe que te deram.</p>
+    <form class="form" method="post" action="/e/<%= event.slug %>/acesso">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <div class="field">
+        <label for="event_password">Palavra-passe da viagem</label>
+        <input type="password" id="event_password" name="event_password" required autocomplete="off">
+      </div>
+      <button class="btn btn--primary btn--block" type="submit">Entrar na viagem</button>
+    </form>
+
+  <% } else if (joinOption === 'precisa_pedido') { %>
+    <p class="muted">
+      A entrada é por aprovação. Envia um pedido e <strong><%= owner.name %></strong> decide.
+    </p>
+    <form class="form" method="post" action="/e/<%= event.slug %>/pedido">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <div class="field">
+        <label for="message">Mensagem <span class="optional">(opcional)</span></label>
+        <textarea id="message" name="message" rows="3" maxlength="300"
+                  placeholder="Olá! Ando a pedalar por Sintra, gostava de ir."></textarea>
+      </div>
+      <button class="btn btn--primary btn--block" type="submit">Pedir para entrar</button>
+    </form>
+
+  <% } else if (joinOption === 'pedido_pendente') { %>
+    <p class="alert alert--warning">
+      O teu pedido está à espera de resposta de <%= owner.name %>.
+    </p>
+    <p class="muted">Avisamos-te aqui assim que houver decisão.</p>
+
+  <% } else if (joinOption === 'pedido_recusado') { %>
+    <p class="alert alert--error">O teu pedido para entrar foi recusado.</p>
+    <p class="muted">Se achas que foi engano, fala directamente com quem organiza.</p>
+
+  <% } %>
+</section>

@@ -1,0 +1,35 @@
+<%- include('partials/header') %>
+
+<section class="container section">
+  <header class="page-head">
+    <div>
+      <h1>Viagens a acontecer</h1>
+      <p class="muted">
+        Viagens públicas e privadas que outras pessoas estão a organizar.
+        As secretas não aparecem aqui — só se chega a elas por link.
+      </p>
+    </div>
+    <% if (user) { %>
+      <a class="btn btn--primary" href="/eventos/novo">Criar viagem</a>
+    <% } %>
+  </header>
+
+  <% if (events.length) { %>
+    <ul class="event-grid">
+      <% events.forEach((event) => { %>
+        <%- include('partials/event-card', { event }) %>
+      <% }) %>
+    </ul>
+  <% } else { %>
+    <div class="empty">
+      <p>Ainda não há viagens públicas. Sê tu a primeira pessoa a organizar uma.</p>
+      <% if (user) { %>
+        <a class="btn btn--primary" href="/eventos/novo">Criar viagem</a>
+      <% } else { %>
+        <a class="btn btn--primary" href="/registar">Criar conta</a>
+      <% } %>
+    </div>
+  <% } %>
+</section>
+
+<%- include('partials/footer') %>

@@ -1,0 +1,95 @@
+<section class="panel" id="datas" aria-labelledby="titulo-datas">
+  <h2 id="titulo-datas">Que dias podes?</h2>
+
+  <% if (!availability.active) { %>
+    <p class="muted">
+      Ainda não há janela de datas definida.
+      <% if (isOwner) { %>
+        Define-a em <a href="/e/<%= event.slug %>/definicoes">definições da viagem</a>.
+      <% } else { %>
+        Quem organiza ainda a vai definir.
+      <% } %>
+    </p>
+  <% } else { %>
+    <p class="muted">
+      Clica nos dias em que estás disponível. Quanto mais escuro o dia, mais gente pode.
+      <% if (availability.respondents) { %>
+        Já responderam <strong><%= availability.respondents %></strong> pessoas.
+      <% } else { %>
+        Ainda ninguém respondeu — sê o primeiro.
+      <% } %>
+    </p>
+
+    <form class="form" method="post" action="/e/<%= event.slug %>/disponibilidades">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+      <div class="calendars">
+        <% availability.months.forEach((month) => { %>
+          <div class="calendar">
+            <h3 class="calendar__title"><%= month.label %></h3>
+
+            <div class="calendar__weekdays" aria-hidden="true">
+              <% WEEKDAYS.forEach((w, i) => { %><span class="calendar__weekday<%= i > 4 ? ' calendar__weekday--weekend' : '' %>"><%= w %></span><% }) %>
+            </div>
+
+            <div class="calendar__grid">
+              <% for (let i = 0; i < month.offset; i += 1) { %>
+                <span class="calendar__spacer" aria-hidden="true"></span>
+              <% } %>
+
+              <% month.days.forEach((iso) => { %>
+                <%
+                  const quem = availability.byDate.get(iso) || [];
+                  const nivel = quem.length === 0 ? 0
+                    : Math.min(4, Math.ceil((quem.length / availability.maxCount) * 4));
+                  const diaSemana = weekdayOf(iso);
+                  const fimDeSemana = diaSemana === 0 || diaSemana === 6;
+                  const rotulo = quem.length
+                    ? `${iso}: ${quem.join(', ')}`
+                    : `${iso}: ninguém marcou`;
+                %>
+                <label class="day<%= fimDeSemana ? ' day--weekend' : '' %>" data-level="<%= nivel %>" title="<%= rotulo %>">
+                  <input type="checkbox" name="dates" value="<%= iso %>"
+                         <%= availability.mine.has(iso) ? 'checked' : '' %>
+                         aria-label="<%= rotulo %>">
+                  <span class="day__number"><%= Number(iso.slice(8, 10)) %></span>
+                  <span class="day__count"><%= quem.length || '' %></span>
+                </label>
+              <% }) %>
+            </div>
+          </div>
+        <% }) %>
+      </div>
+
+      <div class="form-actions">
+        <button class="btn btn--primary" type="submit">Guardar as minhas datas</button>
+        <button class="btn btn--ghost btn--sm" type="button" data-clear-days>Limpar tudo</button>
+      </div>
+    </form>
+
+    <% if (availability.best.length) { %>
+      <h3 class="participants__group">Dias com mais gente</h3>
+      <ul class="best-days">
+        <% availability.best.forEach((d) => { %>
+          <li class="best-day">
+            <div>
+              <p class="best-day__date"><%= formatDate(d.date) %></p>
+              <p class="best-day__names"><%= d.names.join(', ') %></p>
+            </div>
+            <span class="best-day__count"><%= d.count %></span>
+            <% if (isOwner) { %>
+              <form method="post" action="/e/<%= event.slug %>/disponibilidades/escolher">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <input type="hidden" name="date" value="<%= d.date %>">
+                <button class="btn btn--secondary btn--sm" type="submit"
+                        data-confirm="Marcar a viagem para <%= formatDate(d.date) %>? A viagem passa à fase de preparação.">
+                  Escolher
+                </button>
+              </form>
+            <% } %>
+          </li>
+        <% }) %>
+      </ul>
+    <% } %>
+  <% } %>
+</section>

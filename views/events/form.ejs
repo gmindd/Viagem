@@ -1,134 +1,22 @@
-<%
-  const isEdit = mode === 'edit';
-  const action = isEdit ? `/e/${values.slug}/editar` : '/eventos/novo';
-%>
 <%- include('../partials/header') %>
 
 <section class="container narrow section">
-  <h1><%= isEdit ? 'Editar passeio' : 'Novo passeio' %></h1>
+  <h1>Nova viagem</h1>
+  <p class="muted">
+    Não precisas de saber tudo já. Se ainda não têm data, começa na fase
+    "a combinar datas" e o grupo escolhe em conjunto.
+  </p>
 
   <%- include('../partials/errors') %>
 
-  <form class="form panel" method="post" action="<%= action %>" novalidate>
+  <form class="form panel" method="post" action="/eventos/novo" novalidate>
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 
-    <fieldset class="fieldset">
-      <legend>O essencial</legend>
-
-      <div class="field">
-        <label for="title">Nome do passeio</label>
-        <input type="text" id="title" name="title" value="<%= values.title || '' %>" required maxlength="120" placeholder="Volta à Serra de Sintra">
-      </div>
-
-      <div class="field-row">
-        <div class="field">
-          <label for="start_date">Data</label>
-          <input type="date" id="start_date" name="start_date" value="<%= values.start_date || '' %>" required>
-        </div>
-        <div class="field">
-          <label for="start_time">Hora de encontro</label>
-          <input type="time" id="start_time" name="start_time" value="<%= values.start_time || '' %>">
-        </div>
-      </div>
-
-      <div class="field">
-        <label for="end_date">Data de fim <span class="optional">(só para viagens de vários dias)</span></label>
-        <input type="date" id="end_date" name="end_date" value="<%= values.end_date || '' %>">
-      </div>
-
-      <div class="field">
-        <label for="meeting_point">Ponto de encontro</label>
-        <input type="text" id="meeting_point" name="meeting_point" value="<%= values.meeting_point || '' %>" maxlength="200" placeholder="Café Central, Largo da Igreja">
-      </div>
-
-      <div class="field">
-        <label for="description">Descrição</label>
-        <textarea id="description" name="description" rows="6" maxlength="4000" placeholder="Ritmo, paragens previstas, o que levar, plano B se chover…"><%= values.description || '' %></textarea>
-      </div>
-    </fieldset>
-
-    <fieldset class="fieldset">
-      <legend>O percurso</legend>
-
-      <div class="field-row">
-        <div class="field">
-          <label for="distance_km">Distância (km)</label>
-          <input type="number" id="distance_km" name="distance_km" value="<%= values.distance_km ?? '' %>" min="0" step="0.1" inputmode="decimal">
-        </div>
-        <div class="field">
-          <label for="elevation_m">Desnível positivo (m)</label>
-          <input type="number" id="elevation_m" name="elevation_m" value="<%= values.elevation_m ?? '' %>" min="0" step="1" inputmode="numeric">
-        </div>
-      </div>
-
-      <div class="field-row">
-        <div class="field">
-          <label for="difficulty">Dificuldade</label>
-          <select id="difficulty" name="difficulty">
-            <% difficulties.forEach((d) => { %>
-              <option value="<%= d.value %>"<%= values.difficulty === d.value ? ' selected' : '' %>><%= d.label %></option>
-            <% }) %>
-          </select>
-        </div>
-        <div class="field">
-          <label for="bike_type">Tipo de bicicleta</label>
-          <select id="bike_type" name="bike_type">
-            <% bikeTypes.forEach((b) => { %>
-              <option value="<%= b.value %>"<%= values.bike_type === b.value ? ' selected' : '' %>><%= b.label %></option>
-            <% }) %>
-          </select>
-        </div>
-      </div>
-
-      <div class="field">
-        <label for="route_url">Link do percurso <span class="optional">(Komoot, Strava, RideWithGPS…)</span></label>
-        <input type="url" id="route_url" name="route_url" value="<%= values.route_url || '' %>" placeholder="https://www.komoot.com/tour/...">
-      </div>
-
-      <div class="field">
-        <label for="max_participants">Limite de participantes <span class="optional">(deixa vazio para não limitar)</span></label>
-        <input type="number" id="max_participants" name="max_participants" value="<%= values.max_participants ?? '' %>" min="1" step="1" inputmode="numeric">
-      </div>
-    </fieldset>
-
-    <fieldset class="fieldset" data-visibility-group>
-      <legend>Quem pode ver</legend>
-
-      <label class="radio-card">
-        <input type="radio" name="visibility" value="free" <%= values.visibility !== 'password' ? 'checked' : '' %> data-visibility-option>
-        <span class="radio-card__body">
-          <span class="radio-card__title">Aberto a quem tiver o link</span>
-          <span class="radio-card__desc">Qualquer pessoa com o link vê os detalhes. Para se inscrever tem de ter conta.</span>
-        </span>
-      </label>
-
-      <label class="radio-card">
-        <input type="radio" name="visibility" value="password" <%= values.visibility === 'password' ? 'checked' : '' %> data-visibility-option>
-        <span class="radio-card__body">
-          <span class="radio-card__title">Protegido por palavra-passe</span>
-          <span class="radio-card__desc">Além do link, é preciso a palavra-passe do passeio para ver os detalhes.</span>
-        </span>
-      </label>
-
-      <!-- Visível por omissão: é o JS que o esconde quando a opção não é "protegido",
-           para que o formulário continue utilizável sem JavaScript. -->
-      <div class="field" data-password-field>
-        <label for="access_password">Palavra-passe do passeio</label>
-        <input type="password" id="access_password" name="access_password" autocomplete="off" minlength="4"
-               placeholder="<%= isEdit && values.access_password_hash ? 'Deixa vazio para manter a actual' : 'Mínimo 4 caracteres' %>">
-        <p class="field-hint">
-          <% if (isEdit && values.access_password_hash) { %>
-            Já existe uma palavra-passe definida. Escreve uma nova só se a quiseres mudar.
-          <% } else { %>
-            Partilha-a com o grupo junto com o link.
-          <% } %>
-        </p>
-      </div>
-    </fieldset>
+    <%- include('../partials/event-fields') %>
 
     <div class="form-actions">
-      <button class="btn btn--primary btn--lg" type="submit"><%= isEdit ? 'Guardar alterações' : 'Criar passeio' %></button>
-      <a class="btn btn--ghost" href="<%= isEdit ? `/e/${values.slug}` : '/painel' %>">Cancelar</a>
+      <button class="btn btn--primary btn--lg" type="submit">Criar viagem</button>
+      <a class="btn btn--ghost" href="/painel">Cancelar</a>
     </div>
   </form>
 </section>

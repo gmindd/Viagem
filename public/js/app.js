@@ -5,11 +5,13 @@
 
 document.addEventListener('DOMContentLoaded', () => {
   initNavToggle();
+  initPhaseToggle();
   initVisibilityToggle();
   initCopyButtons();
   initNativeShare();
   initConfirmActions();
   initCapacityBars();
+  initCalendar();
 });
 
 /**
@@ -29,25 +31,123 @@ function initNavToggle() {
 }
 
 /**
- * No formulário de evento, mostra o campo da palavra-passe apenas
- * quando a opção "protegido por palavra-passe" está seleccionada.
+ * Mostra apenas os campos que fazem sentido para a fase escolhida:
+ * janela de datas na fase "datas", data marcada nas restantes.
  */
-function initVisibilityToggle() {
-  const group = document.querySelector('[data-visibility-group]');
-  if (!group) return;
+function initPhaseToggle() {
+  const group = document.querySelector('[data-phase-group]');
+  const sections = document.querySelectorAll('[data-when-phase]');
+  if (!group || !sections.length) return;
 
-  const options = group.querySelectorAll('[data-visibility-option]');
-  const passwordField = group.querySelector('[data-password-field]');
-  if (!options.length || !passwordField) return;
-
-  // Reflecte a opção actualmente seleccionada no campo de palavra-passe
+  // Esconde as secções que não pertencem à fase actualmente seleccionada
   const sync = () => {
-    const selected = group.querySelector('[data-visibility-option]:checked');
-    passwordField.hidden = selected?.value !== 'password';
+    const selected = group.querySelector('[data-phase-option]:checked');
+    const phase = selected ? selected.value : 'preparacao';
+    sections.forEach((section) => {
+      section.hidden = !section.dataset.whenPhase.split(' ').includes(phase);
+    });
   };
 
-  options.forEach((option) => option.addEventListener('change', sync));
+  group.querySelectorAll('[data-phase-option]').forEach((option) => {
+    option.addEventListener('change', sync);
+  });
   sync();
+}
+
+/**
+ * Liga a visibilidade escolhida às formas de entrada possíveis:
+ * uma viagem pública é sempre de entrada livre, por isso as outras
+ * opções desaparecem e o campo da palavra-passe também.
+ */
+function initVisibilityToggle() {
+  const visibilityGroup = document.querySelector('[data-visibility-group]');
+  const joinGroup = document.querySelector('[data-join-group]');
+  if (!visibilityGroup || !joinGroup) return;
+
+  const passwordField = joinGroup.querySelector('[data-password-field]');
+  const joinCards = joinGroup.querySelectorAll('[data-join-card]');
+  const joinNote = joinGroup.querySelector('[data-join-note]');
+
+  // Reflecte visibilidade e política de entrada nos campos visíveis
+  const sync = () => {
+    const visibility = visibilityGroup.querySelector('[data-visibility-option]:checked')?.value;
+    const isPublic = visibility === 'publico';
+
+    // Numa viagem pública só resta a entrada livre
+    joinCards.forEach((card) => {
+      const allowed = !isPublic || card.dataset.joinCard === 'aberto';
+      card.hidden = !allowed;
+      const input = card.querySelector('[data-join-option]');
+      if (input) input.disabled = !allowed;
+    });
+
+    if (isPublic) {
+      const open = joinGroup.querySelector('[data-join-option][value="aberto"]');
+      if (open) open.checked = true;
+    }
+    if (joinNote) joinNote.hidden = isPublic;
+
+    const policy = joinGroup.querySelector('[data-join-option]:checked')?.value;
+    if (passwordField) passwordField.hidden = policy !== 'palavra_passe';
+  };
+
+  visibilityGroup.querySelectorAll('[data-visibility-option]')
+    .forEach((option) => option.addEventListener('change', sync));
+  joinGroup.querySelectorAll('[data-join-option]')
+    .forEach((option) => option.addEventListener('change', sync));
+
+  sync();
+}
+
+/**
+ * Calendário de disponibilidades: permite arrastar sobre vários dias
+ * e desmarcar tudo de uma vez, sem obrigar a clicar dia a dia.
+ */
+function initCalendar() {
+  const calendars = document.querySelector('.calendars');
+  if (!calendars) return;
+
+  let painting = false;
+  let paintValue = true;
+
+  // Aplica a um dia o mesmo estado do dia onde o arrasto começou
+  const paint = (label) => {
+    const input = label.querySelector('input[type=checkbox]');
+    if (input && input.checked !== paintValue) {
+      input.checked = paintValue;
+      label.classList.toggle('day--mine', paintValue);
+    }
+  };
+
+  calendars.addEventListener('pointerdown', (event) => {
+    const label = event.target.closest('.day');
+    if (!label) return;
+    const input = label.querySelector('input[type=checkbox]');
+    if (!input) return;
+    painting = true;
+    // O clique normal já alterna o estado; o arrasto segue esse novo valor
+    paintValue = !input.checked;
+  });
+
+  calendars.addEventListener('pointerover', (event) => {
+    if (!painting) return;
+    const label = event.target.closest('.day');
+    if (label) paint(label);
+  });
+
+  const stop = () => { painting = false; };
+  document.addEventListener('pointerup', stop);
+  document.addEventListener('pointercancel', stop);
+
+  // Botão para limpar todas as marcações de uma vez
+  const clearButton = document.querySelector('[data-clear-days]');
+  if (clearButton) {
+    clearButton.addEventListener('click', () => {
+      calendars.querySelectorAll('input[type=checkbox]').forEach((input) => {
+        input.checked = false;
+      });
+    });
+  }
 }
 
 /**

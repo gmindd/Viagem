@@ -13,11 +13,17 @@ import { router as eventsRouter } from './routes/events.js';
 import {
   formatDate,
   formatDateTime,
+  formatKm,
   isPastDate,
+  weekdayOf,
   labelFor,
   DIFFICULTIES,
   BIKE_TYPES,
-  STATUS_LABELS
+  STATUS_LABELS,
+  PHASES,
+  VISIBILITIES,
+  JOIN_POLICIES,
+  WEEKDAY_INITIALS_PT
 } from './lib/helpers.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -88,11 +94,17 @@ export function createApp() {
   // Helpers disponíveis em todas as vistas
   app.locals.formatDate = formatDate;
   app.locals.formatDateTime = formatDateTime;
+  app.locals.formatKm = formatKm;
   app.locals.isPastDate = isPastDate;
+  app.locals.weekdayOf = weekdayOf;
   app.locals.labelFor = labelFor;
   app.locals.DIFFICULTIES = DIFFICULTIES;
   app.locals.BIKE_TYPES = BIKE_TYPES;
   app.locals.STATUS_LABELS = STATUS_LABELS;
+  app.locals.PHASES = PHASES;
+  app.locals.VISIBILITIES = VISIBILITIES;
+  app.locals.JOIN_POLICIES = JOIN_POLICIES;
+  app.locals.WEEKDAYS = WEEKDAY_INITIALS_PT;
   app.locals.appName = process.env.APP_NAME || 'Viagem';
 
   app.get('/', (req, res) => {

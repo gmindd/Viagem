@@ -33,10 +33,11 @@
       </button>
 
       <nav class="nav" id="nav-principal" aria-label="Navegação principal">
+        <a class="nav__link<%= currentPath === '/viagens' ? ' is-active' : '' %>" href="/viagens">Descobrir</a>
         <% if (user) { %>
-          <a class="nav__link<%= currentPath === '/painel' ? ' is-active' : '' %>" href="/painel">Passeios</a>
+          <a class="nav__link<%= currentPath === '/painel' ? ' is-active' : '' %>" href="/painel">As minhas</a>
           <a class="nav__link<%= currentPath === '/perfil' ? ' is-active' : '' %>" href="/perfil">Perfil</a>
-          <a class="btn btn--primary btn--sm" href="/eventos/novo">Criar passeio</a>
+          <a class="btn btn--primary btn--sm" href="/eventos/novo">Criar viagem</a>
           <form class="nav__form" method="post" action="/sair">
             <input type="hidden" name="_csrf" value="<%= csrfToken %>">
             <button class="btn btn--ghost btn--sm" type="submit">Sair</button>

@@ -1,0 +1,111 @@
+<%- include('../partials/header') %>
+
+<section class="container narrow section">
+  <nav class="breadcrumb" aria-label="Voltar">
+    <a href="/e/<%= event.slug %>">← <%= event.title %></a>
+  </nav>
+
+  <h1>Definições da viagem</h1>
+
+  <% if (pendingCount > 0) { %>
+    <p class="alert alert--warning">
+      Tens <strong><%= pendingCount %></strong> pedido<%= pendingCount === 1 ? '' : 's' %> de adesão à espera.
+      <a href="/e/<%= event.slug %>#pedidos">Ver pedidos</a>
+    </p>
+  <% } %>
+
+  <%- include('../partials/errors') %>
+
+  <form class="form panel" method="post" action="/e/<%= event.slug %>/definicoes" novalidate>
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+    <%- include('../partials/event-fields') %>
+
+    <div class="form-actions">
+      <button class="btn btn--primary btn--lg" type="submit">Guardar definições</button>
+      <a class="btn btn--ghost" href="/e/<%= event.slug %>">Cancelar</a>
+    </div>
+  </form>
+
+  <article class="panel" id="convites">
+    <h2>Convites por link</h2>
+    <p class="muted">
+      Um link de convite deixa entrar directamente, sem palavra-passe nem pedido —
+      útil para quem queres mesmo lá ter, seja qual for a forma de entrada escolhida.
+    </p>
+
+    <% if (invites.length) { %>
+      <ul class="invites">
+        <% invites.forEach((inv) => { %>
+          <%
+            const esgotado = inv.max_uses !== null && inv.uses >= inv.max_uses;
+            const expirado = inv.expires_at && inv.expires_at < new Date().toISOString().slice(0, 10);
+          %>
+          <li class="invite<%= (esgotado || expirado) ? ' invite--dead' : '' %>">
+            <div class="invite__body">
+              <p class="invite__label"><%= inv.label || 'Convite' %></p>
+              <div class="share">
+                <input class="share__input" type="text" readonly
+                       value="<%= inviteBase %>/<%= inv.token %>"
+                       aria-label="Link do convite <%= inv.label || '' %>"
+                       id="convite-<%= inv.id %>">
+                <button class="btn btn--secondary btn--sm" type="button"
+                        data-copy-button data-copy-target="#convite-<%= inv.id %>">Copiar</button>
+              </div>
+              <p class="invite__meta">
+                <%= inv.uses %> utilizaç<%= inv.uses === 1 ? 'ão' : 'ões' %><% if (inv.max_uses) { %> de <%= inv.max_uses %><% } %>
+                <% if (inv.expires_at) { %> · expira a <%= formatDate(inv.expires_at) %><% } %>
+                <% if (esgotado) { %> · <strong>esgotado</strong><% } %>
+                <% if (expirado) { %> · <strong>expirado</strong><% } %>
+              </p>
+            </div>
+            <form method="post" action="/e/<%= event.slug %>/convites/<%= inv.id %>/apagar">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <button class="btn btn--ghost btn--sm" type="submit" data-confirm="Anular este convite?">Anular</button>
+            </form>
+          </li>
+        <% }) %>
+      </ul>
+    <% } else { %>
+      <p class="muted">Ainda não criaste convites.</p>
+    <% } %>
+
+    <form class="form form--inline-block" method="post" action="/e/<%= event.slug %>/convites">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <div class="field-row">
+        <div class="field">
+          <label for="label">Para quem é <span class="optional">(opcional)</span></label>
+          <input type="text" id="label" name="label" maxlength="60" placeholder="Grupo do Bruno">
+        </div>
+        <div class="field">
+          <label for="max_uses">Limite de utilizações</label>
+          <input type="number" id="max_uses" name="max_uses" min="1" step="1" placeholder="sem limite">
+        </div>
+      </div>
+      <div class="field">
+        <label for="expires_at">Expira a <span class="optional">(opcional)</span></label>
+        <input type="date" id="expires_at" name="expires_at">
+      </div>
+      <button class="btn btn--secondary" type="submit">Criar convite</button>
+    </form>
+
+    <p class="share__hint" data-copy-feedback role="status"></p>
+  </article>
+
+  <article class="panel panel--danger">
+    <h2>Apagar viagem</h2>
+    <p class="muted">
+      Apaga a viagem, as inscrições, o mural, os percursos e as disponibilidades.
+      Não há forma de desfazer.
+    </p>
+    <form method="post" action="/e/<%= event.slug %>/apagar">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <button class="btn btn--danger" type="submit"
+              data-confirm="Apagar <%= event.title %>? Perdes inscrições, mensagens e percursos.">
+        Apagar esta viagem
+      </button>
+    </form>
+  </article>
+</section>
+
+<%- include('../partials/footer') %>

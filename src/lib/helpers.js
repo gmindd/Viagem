@@ -53,12 +53,16 @@ export function safeUrl(value) {
 const WEEKDAYS_PT = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
 const MONTHS_PT = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 
-/** Formata uma data ISO (YYYY-MM-DD) em pt-PT, ex.: "sáb, 12 set 2026". */
+/**
+ * Formata uma data ISO (YYYY-MM-DD) em pt-PT, ex.: "sáb, 12 set 2026".
+ * Lida em UTC para que a data escrita seja sempre a que está guardada,
+ * seja qual for o fuso do servidor.
+ */
 export function formatDate(isoDate) {
   if (!isoDate) return '';
-  const d = new Date(`${isoDate}T00:00:00`);
+  const d = new Date(`${isoDate}T00:00:00Z`);
   if (Number.isNaN(d.getTime())) return isoDate;
-  return `${WEEKDAYS_PT[d.getDay()]}, ${d.getDate()} ${MONTHS_PT[d.getMonth()]} ${d.getFullYear()}`;
+  return `${WEEKDAYS_PT[d.getUTCDay()]}, ${d.getUTCDate()} ${MONTHS_PT[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
 }
 
 /**
@@ -75,11 +79,22 @@ export function formatDateTime(sqliteTimestamp) {
   return `${d.getDate()} ${MONTHS_PT[d.getMonth()]}, ${hh}:${mm}`;
 }
 
-/** True quando a data do evento já passou (comparação por dia, não por hora). */
+/** Data de hoje no fuso do servidor, em formato ISO (YYYY-MM-DD). */
+export function todayIso() {
+  const now = new Date();
+  const mm = String(now.getMonth() + 1).padStart(2, '0');
+  const dd = String(now.getDate()).padStart(2, '0');
+  return `${now.getFullYear()}-${mm}-${dd}`;
+}
+
+/**
+ * True quando a data do evento já passou (comparação por dia, não por hora).
+ * Usa a data local do servidor: com a data UTC, entre a meia-noite local e a
+ * meia-noite UTC o "hoje" ficava trocado.
+ */
 export function isPastDate(isoDate) {
   if (!isoDate) return false;
-  const today = new Date().toISOString().slice(0, 10);
-  return isoDate < today;
+  return isoDate < todayIso();
 }
 
 export const DIFFICULTIES = [
@@ -103,6 +118,143 @@ export const STATUS_LABELS = {
   maybe: 'Talvez',
   out: 'Não vou'
 };
+
+/**
+ * Fases da viagem. O organizador escolhe em que fase está, e a página do
+ * evento muda de acordo: em "datas" mostra o calendário de disponibilidades,
+ * em "preparacao" mostra os percursos.
+ */
+export const PHASES = [
+  {
+    value: 'datas',
+    label: 'A combinar datas',
+    short: 'Datas',
+    description: 'Ainda não há data. Cada pessoa marca no calendário os dias em que pode.'
+  },
+  {
+    value: 'preparacao',
+    label: 'Preparação',
+    short: 'Preparação',
+    description: 'Data escolhida. A tratar de percursos, dormidas e logística.'
+  },
+  {
+    value: 'confirmado',
+    label: 'Confirmado',
+    short: 'Confirmado',
+    description: 'Está tudo fechado. Só falta pedalar.'
+  },
+  {
+    value: 'concluido',
+    label: 'Concluído',
+    short: 'Concluído',
+    description: 'A viagem já aconteceu.'
+  }
+];
+
+/** Quem vê o evento. */
+export const VISIBILITIES = [
+  {
+    value: 'publico',
+    label: 'Público',
+    description: 'Aparece na lista de viagens do site e qualquer pessoa pode entrar.'
+  },
+  {
+    value: 'privado',
+    label: 'Privado',
+    description: 'Aparece na lista, mas só se entra por convite, palavra-passe ou pedido aprovado.'
+  },
+  {
+    value: 'secreto',
+    label: 'Secreto',
+    description: 'Não aparece em lado nenhum. Só quem receber o link o encontra.'
+  }
+];
+
+/** Como é que alguém passa a fazer parte da viagem. */
+export const JOIN_POLICIES = [
+  {
+    value: 'aberto',
+    label: 'Entrada livre',
+    description: 'Quem tiver conta entra directamente.'
+  },
+  {
+    value: 'palavra_passe',
+    label: 'Palavra-passe',
+    description: 'É preciso saber a palavra-passe da viagem.'
+  },
+  {
+    value: 'pedido',
+    label: 'Pedido de adesão',
+    description: 'A pessoa pede para entrar e o organizador aceita ou recusa.'
+  }
+];
+
+/** Combinações permitidas: uma viagem pública não pode ter entrada condicionada. */
+export function allowedJoinPolicies(visibility) {
+  if (visibility === 'publico') return ['aberto'];
+  return ['palavra_passe', 'pedido', 'aberto'];
+}
+
+/** Formata uma distância em km sem casas decimais desnecessárias. */
+export function formatKm(value) {
+  if (value === null || value === undefined) return '';
+  return Number.isInteger(value) ? `${value}` : value.toFixed(1);
+}
+
+/**
+ * Constrói a lista de dias entre duas datas ISO, para o calendário de
+ * disponibilidades. Limitada a 120 dias para o calendário não ficar gigante.
+ *
+ * Toda a aritmética é feita em UTC de propósito: com meia-noite local,
+ * toISOString() converte para UTC e num fuso a leste de Greenwich recua um
+ * dia, deslocando o calendário inteiro (o dia 1 aparecia como 31 do mês
+ * anterior e o último dia da janela deixava de ser seleccionável).
+ */
+export function dateRange(startIso, endIso, maxDays = 120) {
+  if (!startIso || !endIso || endIso < startIso) return [];
+  const days = [];
+  const cursor = new Date(`${startIso}T00:00:00Z`);
+  const end = new Date(`${endIso}T00:00:00Z`);
+  if (Number.isNaN(cursor.getTime()) || Number.isNaN(end.getTime())) return [];
+
+  while (cursor <= end && days.length < maxDays) {
+    days.push(cursor.toISOString().slice(0, 10));
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return days;
+}
+
+/** Dia da semana de uma data ISO (0 = domingo), sem interferência do fuso. */
+export function weekdayOf(isoDate) {
+  return new Date(`${isoDate}T00:00:00Z`).getUTCDay();
+}
+
+/** Agrupa uma lista de dias por mês, para o calendário desenhar um bloco por mês. */
+export function groupByMonth(isoDates) {
+  const months = new Map();
+  for (const iso of isoDates) {
+    const key = iso.slice(0, 7);
+    if (!months.has(key)) months.set(key, []);
+    months.get(key).push(iso);
+  }
+  return [...months.entries()].map(([key, days]) => {
+    const [year, month] = key.split('-').map(Number);
+    return {
+      key,
+      label: `${MONTHS_LONG_PT[month - 1]} de ${year}`,
+      // Dia da semana do dia 1, com a semana a começar à segunda-feira
+      offset: (weekdayOf(`${key}-01`) + 6) % 7,
+      days
+    };
+  });
+}
+
+const MONTHS_LONG_PT = [
+  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+];
+
+export const WEEKDAY_INITIALS_PT = ['S', 'T', 'Q', 'Q', 'S', 'S', 'D'];
 
 /** Devolve o rótulo legível de um valor guardado numa lista de opções. */
 export function labelFor(list, value) {

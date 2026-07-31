@@ -12,21 +12,53 @@ uma palavra-passe própria.
 - Perfil com nome, telemóvel, outro contacto (Instagram/Strava/Telegram) e nota pessoal.
 - Alteração de palavra-passe com confirmação da actual.
 
-**Passeios**
-- Data, hora e ponto de encontro; data de fim para viagens de vários dias.
-- Distância, desnível, dificuldade, tipo de bicicleta e link do percurso (Komoot, Strava, …).
-- Limite opcional de vagas, com bloqueio automático quando esgotam.
-- **Link de partilha** próprio (`/e/<código>`), com botão de copiar e partilha nativa no telemóvel.
+**Fases da viagem**
 
-**Visibilidade**
-- `Aberto` — qualquer pessoa com o link vê os detalhes; para se inscrever tem de ter conta.
-- `Protegido` — além do link, é preciso a palavra-passe do passeio para ver seja o que for.
-  O desbloqueio fica guardado na sessão de quem acertou.
+O organizador escolhe a fase nas definições, e a página muda com ela:
+
+| Fase | O que acontece |
+| --- | --- |
+| **A combinar datas** | Ainda não há data. Cada participante marca num calendário os dias em que pode, e a app mostra os dias com mais gente. O organizador escolhe um e a viagem avança sozinha para a fase seguinte. |
+| **Preparação** | Data marcada. Entram os percursos — vários ficheiros GPX, um por etapa, para viagens de vários dias. |
+| **Confirmado** | Está tudo fechado. |
+| **Concluído** | Já aconteceu; sai da lista de viagens a decorrer. |
+
+**Percursos**
+- Vários GPX por viagem, com número de dia, para travessias de várias etapas.
+- A distância e o desnível de cada etapa são calculados a partir do próprio
+  ficheiro — não é preciso escrevê-los à mão — e somados no total da viagem.
+- Em alternativa (ou além disso), links do Komoot, Strava ou RideWithGPS.
+
+**Quem pode ver, e como se entra**
+
+Duas escolhas independentes, ambas nas definições da viagem:
+
+| Visibilidade | Aparece na lista do site? | Quem chega pelo link |
+| --- | --- | --- |
+| **Pública** | Sim | Entra directamente |
+| **Privada** | Sim | Vê a ficha, mas só entra por convite, palavra-passe ou pedido aprovado |
+| **Secreta** | Não | Só quem tiver o link a encontra; entra pela forma escolhida |
+
+As formas de entrada são *entrada livre*, *palavra-passe* ou *pedido de adesão*
+(o organizador aceita ou recusa, e vê a mensagem de quem pediu). Uma viagem
+pública é sempre de entrada livre — a app normaliza a combinação sozinha.
+
+Independentemente disso, o organizador pode emitir **links de convite** que
+deixam entrar directamente, com limite de utilizações e data de validade.
+
+**O que só os membros vêem**
+
+Quem ainda não faz parte da viagem vê apenas a ficha resumida: nome, fase,
+número de participantes e como entrar. Ponto de encontro, percursos, mural,
+calendário e lista de participantes ficam reservados a membros. Os contactos
+de cada pessoa só o organizador os vê, e pode exportá-los em CSV.
 
 **Inscrições e coordenação**
 - Cada pessoa marca *Vou* / *Talvez* / *Não vou*, com uma nota opcional.
-- Mural de mensagens por passeio, para combinar boleias e ritmo.
-- Só quem organiza vê os contactos dos inscritos e pode exportá-los em CSV.
+- Limite opcional de vagas, com bloqueio automático quando esgotam.
+- Mural de mensagens por viagem, para combinar boleias, dormidas e ritmo.
+- **Link de partilha** próprio (`/e/<código>`), com botão de copiar e partilha
+  nativa no telemóvel.
 
 ## Stack
 
@@ -157,6 +189,38 @@ permissão de escrita para o utilizador `node` do contentor. Se for o segundo:
 ```bash
 docker compose exec -u root viagem chown -R node:node /data
 ```
+
+## Actualizações e migrações do esquema
+
+O esquema é gerido por **migrações versionadas** (`src/lib/migrations.js`), com
+a versão aplicada guardada na própria base de dados (`PRAGMA user_version`).
+Em cada arranque a app aplica apenas as que faltam, e cada uma corre dentro de
+uma transacção: se falhar a meio, é revertida por inteiro e a app não arranca —
+prefere-se não abrir a abrir com o esquema a meio.
+
+Antes de aplicar qualquer migração, e sempre que a base de dados já tem contas,
+é gravada uma cópia completa ao lado do ficheiro:
+
+```
+/data/backup-v0-2026-07-31T16-04-37.db
+```
+
+A regra das migrações é só acrescentar — tabelas, colunas, índices — ou
+transformar dados existentes. Nenhuma apaga colunas ou tabelas com dados de
+utilizadores. Actualizar é, por isso, o mesmo de sempre:
+
+```bash
+git pull
+docker compose up -d --build
+```
+
+Os dados mantêm-se, e o log do arranque diz exactamente o que foi aplicado.
+
+> **Nota sobre a actualização para as fases (migração 2):** as viagens criadas
+> antes desta versão não apareciam em lado nenhum — só se lá chegava por link.
+> Para não as expor sem o dono decidir, passaram todas a **secretas**, mantendo
+> a forma de entrada que já tinham (livre, ou por palavra-passe). Se quiseres
+> alguma delas listada no site, muda a visibilidade nas definições da viagem.
 
 ## Cópias de segurança
 
