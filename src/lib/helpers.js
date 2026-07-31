@@ -242,8 +242,11 @@ export function groupByMonth(isoDates) {
     return {
       key,
       label: `${MONTHS_LONG_PT[month - 1]} de ${year}`,
-      // Dia da semana do dia 1, com a semana a começar à segunda-feira
-      offset: (weekdayOf(`${key}-01`) + 6) % 7,
+      // Recuo até à coluna do primeiro dia REALMENTE mostrado, com a semana a
+      // começar à segunda. Tem de partir de days[0] e não do dia 1 do mês: uma
+      // janela que comece a meio do mês desalinhava a grelha toda, e o erro
+      // passa despercebido quando calha começar no dia 1.
+      offset: (weekdayOf(days[0]) + 6) % 7,
       days
     };
   });
