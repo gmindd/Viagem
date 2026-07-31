@@ -36,12 +36,15 @@
         <a class="nav__link<%= currentPath === '/viagens' ? ' is-active' : '' %>" href="/viagens">Descobrir</a>
         <% if (user) { %>
           <a class="nav__link<%= currentPath === '/painel' ? ' is-active' : '' %>" href="/painel">As minhas</a>
-          <% if (pendingTotal > 0) { %>
-            <a class="nav__alert" href="/pedidos">
+          <%# Link permanente: um sítio de pedidos que só aparece quando há
+              pedidos é um sítio que ninguém encontra quando precisa. %>
+          <a class="nav__link nav__link--pedidos<%= currentPath === '/pedidos' ? ' is-active' : '' %><%= pendingTotal > 0 ? ' has-pending' : '' %>"
+             href="/pedidos">
+            Pedidos
+            <% if (pendingTotal > 0) { %>
               <span class="nav__alert-count"><%= pendingTotal %></span>
-              pedido<%= pendingTotal === 1 ? '' : 's' %> para aceitar
-            </a>
-          <% } %>
+            <% } %>
+          </a>
           <a class="nav__link<%= currentPath === '/perfil' ? ' is-active' : '' %>" href="/perfil">Perfil</a>
           <a class="btn btn--primary btn--sm" href="/eventos/novo">Criar viagem</a>
           <form class="nav__form" method="post" action="/sair">

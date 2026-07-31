@@ -233,21 +233,22 @@ a:hover {
   display: inline-flex;
 }
 
-/* Aviso de pedidos por decidir, visível em qualquer página */
-.nav__alert {
+/* Pedidos: link sempre presente, que se destaca quando há algo por decidir */
+.nav__link--pedidos {
   display: inline-flex;
   align-items: center;
   gap: var(--space-xs);
-  padding: 0.3rem 0.7rem;
+}
+
+.nav__link--pedidos.has-pending {
+  padding: 0.25rem 0.6rem;
   border-radius: 999px;
   background: var(--color-warning-soft);
   color: var(--color-warning);
-  font-size: 0.85rem;
-  font-weight: 600;
-  text-decoration: none;
+  font-weight: 700;
 }
 
-.nav__alert:hover {
+.nav__link--pedidos.has-pending:hover {
   background: #f8e6c8;
   color: var(--color-warning);
 }
