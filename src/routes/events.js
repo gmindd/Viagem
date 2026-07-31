@@ -13,7 +13,8 @@ import {
   PHASES,
   VISIBILITIES,
   JOIN_POLICIES,
-  allowedJoinPolicies
+  allowedJoinPolicies,
+  daysBetween
 } from '../lib/helpers.js';
 import {
   isOwner as checkOwner,
@@ -24,6 +25,7 @@ import {
 } from '../lib/access.js';
 import { listPendingForOwner } from '../lib/notifications.js';
 import { router as availabilityRouter, buildAvailability } from './availability.js';
+import { router as proposalsRouter, buildProposals, suggestBlocks } from './proposals.js';
 import {
   router as gpxRouter,
   gpxUploadErrorHandler,
@@ -48,11 +50,13 @@ export const router = express.Router();
 
 const insertEvent = db.prepare(
   `INSERT INTO events (owner_id, slug, title, description, phase, start_date, start_time, end_date,
-                       availability_start, availability_end, meeting_point, distance_km, elevation_m,
+                       availability_start, availability_end, trip_days, days_continuous,
+                       meeting_point, distance_km, elevation_m,
                        difficulty, bike_type, route_url, max_participants, visibility, join_policy,
                        access_password_hash)
    VALUES (@owner_id, @slug, @title, @description, @phase, @start_date, @start_time, @end_date,
-           @availability_start, @availability_end, @meeting_point, @distance_km, @elevation_m,
+           @availability_start, @availability_end, @trip_days, @days_continuous,
+           @meeting_point, @distance_km, @elevation_m,
            @difficulty, @bike_type, @route_url, @max_participants, @visibility, @join_policy,
            @access_password_hash)`
 );
@@ -61,6 +65,7 @@ const updateEvent = db.prepare(
   `UPDATE events SET title = @title, description = @description, phase = @phase,
                      start_date = @start_date, start_time = @start_time, end_date = @end_date,
                      availability_start = @availability_start, availability_end = @availability_end,
+                     trip_days = @trip_days, days_continuous = @days_continuous,
                      meeting_point = @meeting_point, distance_km = @distance_km,
                      elevation_m = @elevation_m, difficulty = @difficulty, bike_type = @bike_type,
                      route_url = @route_url, max_participants = @max_participants,
@@ -211,6 +216,8 @@ router.get('/eventos/novo', requireAuth, (req, res) => {
     errors: [],
     values: {
       phase: 'preparacao',
+      trip_days: 1,
+      days_continuous: 1,
       visibility: 'privado',
       join_policy: 'pedido',
       difficulty: 'moderado',
@@ -265,6 +272,9 @@ router.get('/e/:slug', loadEvent, requireOpen, (req, res) => {
   const { event } = req;
   const participants = req.isMember ? listParticipants.all(event.id) : [];
   const goingCount = participants.filter((p) => p.status === 'going').length;
+  const availability = req.isMember
+    ? buildAvailability(event, req.user)
+    : { active: false, months: [], byDate: new Map(), mine: new Set(), best: [], people: [], missing: [], respondents: 0 };
 
   res.render('events/show', {
     title: event.title,
@@ -282,9 +292,9 @@ router.get('/e/:slug', loadEvent, requireOpen, (req, res) => {
     comments: req.isMember ? listComments.all(event.id) : [],
     routes: req.isMember ? listRoutes.all(event.id) : [],
     totals: routeTotals.get(event.id),
-    availability: req.isMember
-      ? buildAvailability(event, req.user)
-      : { active: false, months: [], byDate: new Map(), mine: new Set(), best: [], respondents: 0 },
+    availability,
+    proposals: req.isMember ? buildProposals(event, req.user) : { active: false, proposals: [] },
+    suggestions: req.isOwner && availability.active ? suggestBlocks(event, availability.byDate) : [],
     pendingRequests: req.isOwner ? listPendingRequests.all(event.id) : [],
     shareUrl: `${req.appBaseUrl}/e/${event.slug}`
   });
@@ -423,6 +433,7 @@ const eventContext = [loadEvent, requireAuth];
 router.use('/e/:slug', eventContext, membershipOwnerRouter);
 router.use('/e/:slug', eventContext, membershipRouter);
 router.use('/e/:slug', eventContext, availabilityRouter);
+router.use('/e/:slug', eventContext, proposalsRouter);
 router.use('/e/:slug', eventContext, gpxRouter, gpxUploadErrorHandler);
 
 // Entrada por convite: o token identifica a viagem
@@ -450,6 +461,8 @@ function readEventForm(body) {
     end_date: cleanText(body.end_date, 10),
     availability_start: cleanText(body.availability_start, 10),
     availability_end: cleanText(body.availability_end, 10),
+    trip_days: toNumberOrNull(body.trip_days),
+    days_continuous: body.days_continuous === 'nao' ? 0 : 1,
     meeting_point: cleanText(body.meeting_point, 200),
     distance_km: toNumberOrNull(body.distance_km),
     elevation_m: toNumberOrNull(body.elevation_m),
@@ -460,6 +473,8 @@ function readEventForm(body) {
     visibility,
     join_policy: joinPolicy
   };
+  if (values.trip_days !== null) values.trip_days = Math.floor(values.trip_days);
+
   const accessPassword = String(body.access_password ?? '').trim();
   const errors = [];
   const isDate = (v) => /^\d{4}-\d{2}-\d{2}$/.test(v);
@@ -472,6 +487,10 @@ function readEventForm(body) {
       errors.push('Indica a janela de datas a considerar (de e até).');
     } else if (values.availability_end < values.availability_start) {
       errors.push('A janela de datas termina antes de começar.');
+    } else if (values.trip_days && daysBetween(values.availability_start, values.availability_end) < values.trip_days) {
+      errors.push(
+        `A janela tem menos dias do que a viagem (${values.trip_days}). Alarga a janela ou reduz a duração.`
+      );
     }
   } else if (!isDate(values.start_date)) {
     errors.push('Indica a data da viagem.');
@@ -479,6 +498,9 @@ function readEventForm(body) {
 
   if (values.end_date && values.start_date && values.end_date < values.start_date) {
     errors.push('A data de fim é anterior à data de início.');
+  }
+  if (values.trip_days !== null && (values.trip_days < 1 || values.trip_days > 60)) {
+    errors.push('A duração da viagem tem de estar entre 1 e 60 dias.');
   }
   if (values.max_participants !== null && values.max_participants < 1) {
     errors.push('O limite de participantes tem de ser pelo menos 1.');

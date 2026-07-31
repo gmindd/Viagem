@@ -1,0 +1,114 @@
+<%- include('../partials/header') %>
+<link rel="stylesheet" href="/vendor/leaflet/leaflet.css">
+<script src="/vendor/leaflet/leaflet.js" defer></script>
+<script src="/js/map.js" defer></script>
+
+<section class="container section">
+  <nav class="breadcrumb" aria-label="Voltar">
+    <a href="/e/<%= event.slug %>#percursos">← <%= event.title %></a>
+  </nav>
+
+  <header class="page-head">
+    <div>
+      <h1><%= route.title %></h1>
+      <p class="muted">
+        <% if (route.day_number) { %>Dia <%= route.day_number %> · <% } %>
+        <% if (route.distance_km) { %><%= formatKm(route.distance_km) %> km<% } %>
+        <% if (route.elevation_m) { %> · <%= route.elevation_m %> m D+<% } %>
+      </p>
+    </div>
+  </header>
+
+  <% if (!hasTrack) { %>
+    <div class="empty">
+      <p>Este percurso não tem ficheiro GPX, por isso não há traçado para mostrar no mapa.</p>
+      <a class="btn btn--ghost" href="/e/<%= event.slug %>#percursos">Voltar aos percursos</a>
+    </div>
+  <% } else { %>
+
+    <div class="map-layout">
+      <div class="map-main">
+        <div class="map-toolbar">
+          <div class="map-filters" data-poi-filters>
+            <% kinds.forEach((k) => { %>
+              <label class="map-filter">
+                <input type="checkbox" value="<%= k.value %>" checked data-poi-filter>
+                <span aria-hidden="true"><%= k.emoji %></span> <%= k.label %>
+              </label>
+            <% }) %>
+          </div>
+
+          <label class="map-split-toggle">
+            <input type="checkbox" data-split-mode>
+            <span>Marcar divisões da rota</span>
+          </label>
+        </div>
+
+        <!-- O mapa é desenhado aqui pelo Leaflet; os dados vêm de mapa.json -->
+        <div class="map" id="mapa"
+             data-map
+             data-map-url="/e/<%= event.slug %>/percursos/<%= route.id %>/mapa.json"
+             data-splits-url="/e/<%= event.slug %>/percursos/<%= route.id %>/divisoes"
+             data-csrf="<%= csrfToken %>"
+             role="application"
+             aria-label="Mapa do percurso <%= route.title %>"></div>
+
+        <p class="map-hint" data-map-status role="status">A carregar o percurso…</p>
+      </div>
+
+      <aside class="map-side">
+        <section class="panel">
+          <h2>Pontos de interesse</h2>
+          <p class="muted">
+            <% if (poiCount) { %>
+              <%= poiCount %> pontos guardados ao longo do percurso.
+            <% } else { %>
+              Ainda não procurámos pontos de interesse neste percurso.
+            <% } %>
+          </p>
+
+          <form class="form" method="post" action="/e/<%= event.slug %>/percursos/<%= route.id %>/pois">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <div class="field">
+              <label for="radius">Procurar até</label>
+              <select id="radius" name="radius">
+                <option value="400">400 m do percurso</option>
+                <option value="800" selected>800 m do percurso</option>
+                <option value="1500">1,5 km do percurso</option>
+                <option value="3000">3 km do percurso</option>
+              </select>
+            </div>
+            <button class="btn btn--secondary btn--block" type="submit">
+              <%= poiCount ? 'Actualizar pontos' : 'Procurar pontos' %>
+            </button>
+            <p class="field-hint">
+              Restaurantes, dormidas, campismo, água, oficinas e mercearias,
+              vindos do OpenStreetMap.
+            </p>
+          </form>
+        </section>
+
+        <section class="panel">
+          <h2>Divisão em etapas</h2>
+          <p class="muted">
+            Liga o "Marcar divisões" e clica no percurso onde achas que cada dia
+            deve terminar. Toda a gente vê as propostas de todos.
+          </p>
+
+          <ul class="splits" data-splits-list>
+            <% if (!splits.length) { %>
+              <li class="muted" data-splits-empty>Ainda ninguém propôs divisões.</li>
+            <% } %>
+          </ul>
+        </section>
+      </aside>
+    </div>
+
+    <p class="map-attribution">
+      Mapa © colaboradores do <a href="https://www.openstreetmap.org/copyright"
+        target="_blank" rel="noopener noreferrer">OpenStreetMap</a>
+    </p>
+  <% } %>
+</section>
+
+<%- include('../partials/footer') %>

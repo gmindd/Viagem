@@ -9,6 +9,8 @@ uma palavra-passe própria.
 
 **Contas**
 - Registo com email + palavra-passe (guardada com bcrypt, 12 rondas).
+- **Recuperação de palavra-passe** por email, com link válido 2 horas e de
+  uso único. Guarda-se o hash do token, nunca o token.
 - Perfil com nome, telemóvel, outro contacto (Instagram/Strava/Telegram) e nota pessoal.
 - Alteração de palavra-passe com confirmação da actual.
 
@@ -18,10 +20,28 @@ O organizador escolhe a fase nas definições, e a página muda com ela:
 
 | Fase | O que acontece |
 | --- | --- |
-| **A combinar datas** | Ainda não há data. Cada participante marca num calendário os dias em que pode, e a app mostra os dias com mais gente. O organizador escolhe um e a viagem avança sozinha para a fase seguinte. |
+| **A combinar datas** | Ainda não há data. Cada participante marca num calendário os dias em que pode. Vê-se quantas pessoas podem em cada dia (mapa de calor) **e quem são** — por pessoa, com os blocos de dias seguidos que marcou. |
+| **A votar nas datas** | O organizador põe alguns blocos de datas a votação — sugeridos a partir das disponibilidades, ou à mão — e o grupo responde *pode ser* / *talvez* / *não posso*. No fim escolhe-se um e a viagem avança. |
 | **Preparação** | Data marcada. Entram os percursos — vários ficheiros GPX, um por etapa, para viagens de vários dias. |
 | **Confirmado** | Está tudo fechado. |
 | **Concluído** | Já aconteceu; sai da lista de viagens a decorrer. |
+
+**Duração da viagem**
+- Define quantos dias dura e se têm de ser **seguidos**.
+- A disponibilidade é validada em função disso: numa viagem de 3 dias seguidos,
+  marcar 3 dias soltos é recusado com a explicação do porquê. Se os dias
+  puderem ser separados, bastam 3 dias quaisquer.
+- As sugestões de datas só contam quem pode em *todos* os dias de cada bloco.
+
+**Mapa do percurso**
+- Cada GPX tem um mapa, com o traçado desenhado sobre o OpenStreetMap.
+- **Pontos de interesse** ao longo da rota: restaurantes, dormidas, campismo,
+  água, oficinas de bicicletas e mercearias, vindos do OpenStreetMap, com
+  raio de procura configurável (400 m a 3 km) e filtros por categoria.
+- **Divisão em etapas**: cada participante clica no percurso onde acha que
+  cada dia deve acabar. As propostas de toda a gente ficam visíveis no mapa e
+  numa lista, com o quilómetro exacto. Cada um apaga as suas; quem organiza
+  apaga quaisquer.
 
 **Percursos**
 - Vários GPX por viagem, com número de dia, para travessias de várias etapas.
@@ -149,6 +169,8 @@ secção *Environment Variables*. No mínimo:
 | `SESSION_SECRET` | 96 caracteres aleatórios (ver abaixo)    |
 | `BASE_URL`       | `https://viagem.oteudominio.pt`          |
 | `TZ`             | `Europe/Lisbon`                          |
+| `RESEND_API_KEY` | chave do Resend (opcional — ver abaixo)  |
+| `EMAIL_FROM`     | `Viagem <viagem@oteudominio.pt>`         |
 
 ```bash
 node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
@@ -221,6 +243,47 @@ Os dados mantêm-se, e o log do arranque diz exactamente o que foi aplicado.
 > Para não as expor sem o dono decidir, passaram todas a **secretas**, mantendo
 > a forma de entrada que já tinham (livre, ou por palavra-passe). Se quiseres
 > alguma delas listada no site, muda a visibilidade nas definições da viagem.
+
+## Emails (Resend)
+
+A app envia emails em três situações: recuperação de palavra-passe, aviso ao
+organizador quando alguém pede para entrar, e aviso a quem pediu quando há
+decisão. Também há um botão para avisar o grupo de que há datas para votar.
+
+**Sem configuração, a app funciona à mesma** — simplesmente não envia nada. Os
+pedidos de adesão continuam visíveis no menu *Pedidos*. A única coisa que fica
+mesmo indisponível é a recuperação de palavra-passe: sem email não há como
+entregar o link.
+
+Para activar:
+
+1. Cria conta em <https://resend.com> (o plano gratuito chega bem para um
+   grupo de amigos).
+2. **Domains → Add Domain**, e acrescenta os registos DNS que te derem (SPF e
+   DKIM) no teu fornecedor de domínio. Sem o domínio verificado, o envio falha.
+3. **API Keys → Create**, e define no servidor:
+
+```
+RESEND_API_KEY=re_...
+EMAIL_FROM=Viagem <viagem@oteudominio.pt>
+```
+
+O domínio de `EMAIL_FROM` tem de ser o que verificaste no passo 2.
+
+Se o envio falhar, a acção que o originou **não é desfeita** — um pedido de
+adesão fica registado mesmo que o email não saia — e a falha é escrita no log
+com o motivo.
+
+## Pontos de interesse no mapa
+
+Os pontos vêm do OpenStreetMap, através da [Overpass API](https://overpass-api.de).
+É um serviço comunitário gratuito, por isso a app **guarda os resultados** e só
+volta a consultá-lo quando pedires ou passada uma semana. Não é preciso
+configurar nada; se tiveres um servidor Overpass próprio, define `OVERPASS_URL`.
+
+Os mosaicos do mapa vêm dos servidores do OpenStreetMap. Para um grupo de
+amigos o volume é irrelevante, mas se a app crescer convém usar um fornecedor
+de mosaicos próprio, como pede a [política de utilização](https://operations.osmfoundation.org/policies/tiles/).
 
 ## Cópias de segurança
 

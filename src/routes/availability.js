@@ -1,6 +1,12 @@
 import express from 'express';
 import { db } from '../lib/db.js';
-import { dateRange, groupByMonth } from '../lib/helpers.js';
+import {
+  dateRange,
+  groupByMonth,
+  consecutiveRuns,
+  longestRun,
+  checkAvailabilityFits
+} from '../lib/helpers.js';
 import { requireOpen, requireMember, requireOwner } from '../middleware/event-guards.js';
 
 export const router = express.Router({ mergeParams: true });
@@ -18,6 +24,10 @@ const listAvailability = db.prepare(
    WHERE a.event_id = ?`
 );
 
+const listMembers = db.prepare(
+  'SELECT u.id, u.name FROM participants p JOIN users u ON u.id = p.user_id WHERE p.event_id = ?'
+);
+
 const countRespondents = db.prepare(
   'SELECT COUNT(DISTINCT user_id) AS n FROM event_availability WHERE event_id = ?'
 );
@@ -29,20 +39,42 @@ const countRespondents = db.prepare(
 export function buildAvailability(event, user) {
   const days = dateRange(event.availability_start, event.availability_end);
   if (!days.length) {
-    return { active: false, months: [], byDate: new Map(), mine: new Set(), best: [], respondents: 0 };
+    return {
+      active: false, months: [], byDate: new Map(), mine: new Set(),
+      best: [], respondents: 0, people: [], missing: []
+    };
   }
 
   const rows = listAvailability.all(event.id);
 
-  // Quem está disponível em cada dia
+  // Quem está disponível em cada dia, e o que cada pessoa marcou
   const byDate = new Map(days.map((d) => [d, []]));
+  const byPerson = new Map();
   const mine = new Set();
+
   for (const row of rows) {
     if (byDate.has(row.date)) byDate.get(row.date).push(row.name);
     if (user && row.user_id === user.id) mine.add(row.date);
+
+    if (!byPerson.has(row.user_id)) {
+      byPerson.set(row.user_id, { id: row.user_id, name: row.name, dates: [] });
+    }
+    byPerson.get(row.user_id).dates.push(row.date);
   }
 
-  const respondents = countRespondents.get(event.id).n;
+  // Lista por pessoa, com os blocos seguidos que cada uma marcou
+  const people = [...byPerson.values()]
+    .map((p) => ({
+      ...p,
+      dates: p.dates.sort(),
+      runs: consecutiveRuns(p.dates),
+      longest: longestRun(p.dates)
+    }))
+    .sort((a, b) => b.dates.length - a.dates.length || a.name.localeCompare(b.name));
+
+  // Quem faz parte da viagem e ainda não respondeu
+  const responded = new Set(byPerson.keys());
+  const missing = listMembers.all(event.id).filter((m) => !responded.has(m.id));
 
   // Dias com mais gente disponível, para o organizador decidir depressa
   const best = [...byDate.entries()]
@@ -57,8 +89,11 @@ export function buildAvailability(event, user) {
     byDate,
     mine,
     best,
-    respondents,
-    maxCount: Math.max(1, ...[...byDate.values()].map((n) => n.length))
+    people,
+    missing,
+    respondents: countRespondents.get(event.id).n,
+    maxCount: Math.max(1, ...[...byDate.values()].map((n) => n.length)),
+    myLongest: longestRun([...mine])
   };
 }
 
@@ -73,6 +108,14 @@ router.post('/disponibilidades', requireOpen, requireMember, (req, res) => {
   // Aceita uma ou várias caixas com o mesmo nome
   const submitted = [].concat(req.body.dates ?? []);
   const chosen = [...new Set(submitted.filter((d) => valid.has(d)))];
+
+  // A viagem pode exigir um número mínimo de dias, e que sejam seguidos.
+  // Marcar zero dias continua a ser permitido: é como se diz "não posso".
+  const fits = checkAvailabilityFits(chosen, event.trip_days, event.days_continuous === 1);
+  if (!fits.ok) {
+    res.flash('error', fits.error);
+    return res.redirect(`/e/${event.slug}#datas`);
+  }
 
   // Substitui a marcação anterior por inteiro, numa transacção
   const save = db.transaction(() => {

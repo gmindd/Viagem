@@ -11,6 +11,21 @@
       <% } %>
     </p>
   <% } else { %>
+    <% if (event.trip_days > 1) { %>
+      <p class="notice">
+        A viagem é de <strong><%= event.trip_days %> dias<%= event.days_continuous === 1 ? ' seguidos' : '' %></strong>.
+        <% if (event.days_continuous === 1) { %>
+          Marca pelo menos <%= event.trip_days %> dias consecutivos.
+        <% } else { %>
+          Marca pelo menos <%= event.trip_days %> dias, mesmo que separados.
+        <% } %>
+        <% if (availability.mine.size) { %>
+          Tens <%= availability.mine.size %> marcados<% if (event.days_continuous === 1) { %>,
+          o bloco mais longo é de <%= availability.myLongest %><% } %>.
+        <% } %>
+      </p>
+    <% } %>
+
     <p class="muted">
       Clica nos dias em que estás disponível. Quanto mais escuro o dia, mais gente pode.
       <% if (availability.respondents) { %>
@@ -67,6 +82,44 @@
       </div>
     </form>
 
+    <%# Quem marcou o quê: o calendário mostra quantos, esta lista mostra quem %>
+    <% if (availability.people.length) { %>
+      <h3 class="participants__group">Quem marcou o quê</h3>
+      <ul class="who-list">
+        <% availability.people.forEach((p) => { %>
+          <li class="who">
+            <span class="avatar" aria-hidden="true"><%= p.name.trim().charAt(0).toUpperCase() %></span>
+            <div class="who__body">
+              <p class="who__name">
+                <%= p.name %>
+                <span class="who__count"><%= p.dates.length %> dia<%= p.dates.length === 1 ? '' : 's' %></span>
+                <% if (event.trip_days > 1 && event.days_continuous === 1) { %>
+                  <span class="who__run">bloco mais longo: <%= p.longest %></span>
+                <% } %>
+              </p>
+              <ul class="who__dates">
+                <% p.runs.forEach((run) => { %>
+                  <li class="who__run-chip">
+                    <% if (run.length === 1) { %>
+                      <%= formatDate(run[0]) %>
+                    <% } else { %>
+                      <%= formatDate(run[0]) %> → <%= formatDate(run[run.length - 1]) %>
+                    <% } %>
+                  </li>
+                <% }) %>
+              </ul>
+            </div>
+          </li>
+        <% }) %>
+      </ul>
+    <% } %>
+
+    <% if (availability.missing && availability.missing.length) { %>
+      <p class="notice">
+        Ainda sem resposta: <%= availability.missing.map((m) => m.name).join(', ') %>.
+      </p>
+    <% } %>
+
     <% if (availability.best.length) { %>
       <h3 class="participants__group">Dias com mais gente</h3>
       <ul class="best-days">
@@ -77,7 +130,7 @@
               <p class="best-day__names"><%= d.names.join(', ') %></p>
             </div>
             <span class="best-day__count"><%= d.count %></span>
-            <% if (isOwner) { %>
+            <% if (isOwner && (event.trip_days || 1) === 1) { %>
               <form method="post" action="/e/<%= event.slug %>/disponibilidades/escolher">
                 <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                 <input type="hidden" name="date" value="<%= d.date %>">

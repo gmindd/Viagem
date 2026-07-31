@@ -185,6 +185,103 @@ MIGRATIONS.push({
   }
 });
 
+MIGRATIONS.push({
+  version: 4,
+  name: 'Duração da viagem, propostas de datas, recuperação de palavra-passe, divisões de rota e pontos de interesse',
+  up(db) {
+    /* --- Duração da viagem --------------------------------------- */
+    // Quantos dias dura, e se têm de ser seguidos. Serve para validar a
+    // disponibilidade: com 3 dias seguidos, marcar 3 dias soltos não chega.
+    addColumn(db, 'events', 'trip_days', 'INTEGER');
+    addColumn(db, 'events', 'days_continuous', 'INTEGER NOT NULL DEFAULT 1');
+
+    /* --- Propostas de datas -------------------------------------- */
+    // Depois de recolher disponibilidades, o organizador propõe alguns
+    // blocos de datas e o grupo vota no que prefere.
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS date_proposals (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        event_id   INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+        start_date TEXT    NOT NULL,
+        end_date   TEXT    NOT NULL,
+        note       TEXT    NOT NULL DEFAULT '',
+        created_at TEXT    NOT NULL DEFAULT (datetime('now')),
+        UNIQUE(event_id, start_date, end_date)
+      );
+      CREATE INDEX IF NOT EXISTS idx_proposals_event ON date_proposals(event_id);
+
+      CREATE TABLE IF NOT EXISTS proposal_votes (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        proposal_id INTEGER NOT NULL REFERENCES date_proposals(id) ON DELETE CASCADE,
+        user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        vote        TEXT    NOT NULL DEFAULT 'sim',
+        created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+        UNIQUE(proposal_id, user_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_votes_proposal ON proposal_votes(proposal_id);
+    `);
+
+    /* --- Recuperação de palavra-passe ---------------------------- */
+    // Guarda-se o hash do token, não o token: quem leia a base de dados não
+    // consegue recuperar contas alheias.
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS password_resets (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        token_hash TEXT    NOT NULL UNIQUE,
+        expires_at INTEGER NOT NULL,
+        used_at    TEXT,
+        created_at TEXT    NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE INDEX IF NOT EXISTS idx_resets_user ON password_resets(user_id);
+    `);
+
+    /* --- Divisão da rota em etapas -------------------------------- */
+    // Cada participante marca onde acha que a rota deve ser cortada.
+    // position_km é a distância desde o início do percurso.
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS route_splits (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        route_id    INTEGER NOT NULL REFERENCES event_routes(id) ON DELETE CASCADE,
+        user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        position_km REAL    NOT NULL,
+        lat         REAL,
+        lon         REAL,
+        note        TEXT    NOT NULL DEFAULT '',
+        created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE INDEX IF NOT EXISTS idx_splits_route ON route_splits(route_id);
+    `);
+
+    /* --- Pontos de interesse ao longo da rota --------------------- */
+    // Cache dos resultados do Overpass mais o que for acrescentado à mão,
+    // para não repetir a consulta externa a cada visita à página.
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS route_pois (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        route_id    INTEGER NOT NULL REFERENCES event_routes(id) ON DELETE CASCADE,
+        external_id TEXT,
+        kind        TEXT    NOT NULL,
+        name        TEXT    NOT NULL DEFAULT '',
+        lat         REAL    NOT NULL,
+        lon         REAL    NOT NULL,
+        details     TEXT    NOT NULL DEFAULT '',
+        source      TEXT    NOT NULL DEFAULT 'osm',
+        added_by    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE INDEX IF NOT EXISTS idx_pois_route ON route_pois(route_id);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_pois_external ON route_pois(route_id, external_id)
+        WHERE external_id IS NOT NULL;
+    `);
+
+    // Quando foi a última vez que se foram buscar POIs a esta rota
+    addColumn(db, 'event_routes', 'pois_fetched_at', 'TEXT');
+    // Traçado simplificado do GPX, para o mapa não reler o ficheiro a cada visita
+    addColumn(db, 'event_routes', 'track_json', 'TEXT');
+  }
+});
+
 export const LATEST_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;
 
 /* ------------------------------------------------------------------ */

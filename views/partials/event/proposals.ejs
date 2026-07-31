@@ -1,0 +1,155 @@
+<section class="panel" id="propostas" aria-labelledby="titulo-propostas">
+  <h2 id="titulo-propostas">
+    Propostas de datas
+    <% if (proposals.proposals.length) { %><span class="counter"><%= proposals.proposals.length %></span><% } %>
+  </h2>
+
+  <% if (!proposals.proposals.length) { %>
+    <p class="muted">
+      <% if (isOwner) { %>
+        Ainda não propuseste datas. Abaixo tens os blocos com mais gente disponível —
+        escolhe os que quiseres pôr a votação.
+      <% } else { %>
+        Quem organiza ainda não pôs datas a votação.
+      <% } %>
+    </p>
+  <% } else { %>
+    <p class="muted">
+      Votaram <strong><%= proposals.voterCount %></strong> de <%= proposals.memberCount %> participantes.
+      Marca em quais podes — quem organiza fecha a data no fim.
+    </p>
+
+    <ul class="proposals">
+      <% proposals.proposals.forEach((p) => { %>
+        <li class="proposal<%= p.isBest ? ' proposal--best' : '' %>">
+          <div class="proposal__head">
+            <div>
+              <p class="proposal__dates">
+                <%= formatDate(p.start_date) %>
+                <% if (p.end_date !== p.start_date) { %> — <%= formatDate(p.end_date) %><% } %>
+              </p>
+              <p class="proposal__meta">
+                <%= p.days %> dia<%= p.days === 1 ? '' : 's' %>
+                <% if (p.note) { %> · <%= p.note %><% } %>
+                <% if (p.isBest) { %> · <span class="tag">mais votada</span><% } %>
+              </p>
+            </div>
+            <% if (isOwner) { %>
+              <form method="post" action="/e/<%= event.slug %>/propostas/<%= p.id %>/apagar">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <button class="link-button" type="submit" data-confirm="Remover esta proposta?">Remover</button>
+              </form>
+            <% } %>
+          </div>
+
+          <div class="proposal__votes">
+            <% [['sim', p.votes.sim], ['talvez', p.votes.talvez], ['nao', p.votes.nao]].forEach(([tipo, lista]) => { %>
+              <% if (lista.length) { %>
+                <div class="vote-group vote-group--<%= tipo %>">
+                  <span class="vote-group__label"><%= VOTE_LABELS[tipo] %> · <%= lista.length %></span>
+                  <span class="vote-group__names"><%= lista.map((v) => v.name).join(', ') %></span>
+                </div>
+              <% } %>
+            <% }) %>
+            <% if (!p.votes.sim.length && !p.votes.talvez.length && !p.votes.nao.length) { %>
+              <p class="muted">Ainda sem votos.</p>
+            <% } %>
+          </div>
+
+          <form class="proposal__form" method="post" action="/e/<%= event.slug %>/propostas/<%= p.id %>/votar">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <div class="status-options">
+              <% ['sim', 'talvez', 'nao'].forEach((v) => { %>
+                <label class="status-option status-option--<%= v === 'sim' ? 'going' : (v === 'nao' ? 'out' : 'maybe') %>">
+                  <input type="radio" name="vote" value="<%= v %>" <%= p.myVote === v ? 'checked' : '' %>>
+                  <span><%= VOTE_LABELS[v] %></span>
+                </label>
+              <% }) %>
+            </div>
+            <button class="btn btn--secondary btn--sm" type="submit">
+              <%= p.myVote ? 'Mudar voto' : 'Votar' %>
+            </button>
+          </form>
+
+          <% if (isOwner) { %>
+            <form method="post" action="/e/<%= event.slug %>/propostas/<%= p.id %>/escolher">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <button class="btn btn--primary btn--sm" type="submit"
+                      data-confirm="Fechar a viagem nestas datas? A viagem passa à fase de preparação.">
+                Escolher estas datas
+              </button>
+            </form>
+          <% } %>
+        </li>
+      <% }) %>
+    </ul>
+  <% } %>
+
+  <% if (isOwner) { %>
+    <% if (suggestions && suggestions.length) { %>
+      <h3 class="participants__group">Blocos com mais gente disponível</h3>
+      <p class="field-hint">
+        Calculado a partir das disponibilidades marcadas, em blocos de
+        <%= event.trip_days || 1 %> dia<%= (event.trip_days || 1) === 1 ? '' : 's' %>.
+        Só conta quem pode em <em>todos</em> os dias do bloco.
+      </p>
+      <ul class="suggestions">
+        <% suggestions.forEach((s) => { %>
+          <li class="suggestion">
+            <div>
+              <p class="suggestion__dates">
+                <%= formatDate(s.start_date) %>
+                <% if (s.end_date !== s.start_date) { %> — <%= formatDate(s.end_date) %><% } %>
+              </p>
+              <p class="suggestion__names"><%= s.names.join(', ') %></p>
+            </div>
+            <span class="best-day__count"><%= s.count %></span>
+            <form method="post" action="/e/<%= event.slug %>/propostas">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <input type="hidden" name="start_date" value="<%= s.start_date %>">
+              <input type="hidden" name="end_date" value="<%= s.end_date %>">
+              <button class="btn btn--secondary btn--sm" type="submit">Pôr a votação</button>
+            </form>
+          </li>
+        <% }) %>
+      </ul>
+    <% } %>
+
+    <details class="disclosure">
+      <summary>Propor outras datas</summary>
+      <form class="form" method="post" action="/e/<%= event.slug %>/propostas">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <div class="field-row">
+          <div class="field">
+            <label for="proposal_start">De</label>
+            <input type="date" id="proposal_start" name="start_date" required>
+          </div>
+          <div class="field">
+            <label for="proposal_end">Até <span class="optional">(vazio = <%= event.trip_days || 1 %> dias)</span></label>
+            <input type="date" id="proposal_end" name="end_date">
+          </div>
+        </div>
+        <div class="field">
+          <label for="proposal_note">Nota <span class="optional">(opcional)</span></label>
+          <input type="text" id="proposal_note" name="note" maxlength="200"
+                 placeholder="Fim-de-semana prolongado">
+        </div>
+        <button class="btn btn--secondary" type="submit">Adicionar proposta</button>
+      </form>
+    </details>
+
+    <% if (proposals.proposals.length) { %>
+      <div class="form-actions">
+        <form method="post" action="/e/<%= event.slug %>/propostas/avisar">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <button class="btn btn--ghost btn--sm" type="submit">Avisar o grupo por email</button>
+        </form>
+        <form method="post" action="/e/<%= event.slug %>/propostas/reabrir">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <button class="link-button" type="submit"
+                  data-confirm="Voltar à recolha de disponibilidades?">Voltar às disponibilidades</button>
+        </form>
+      </div>
+    <% } %>
+  <% } %>
+</section>

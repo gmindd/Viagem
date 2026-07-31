@@ -1,0 +1,30 @@
+<%- include('../partials/header') %>
+
+<section class="container narrow section">
+  <article class="panel">
+    <h1>Definir palavra-passe nova</h1>
+    <p class="muted">Escolhe uma palavra-passe com pelo menos 8 caracteres.</p>
+
+    <%- include('../partials/errors') %>
+
+    <form class="form" method="post" action="/recuperar/<%= token %>" novalidate>
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+      <div class="field">
+        <label for="password">Palavra-passe nova</label>
+        <input type="password" id="password" name="password" required minlength="8"
+               autocomplete="new-password" autofocus>
+      </div>
+
+      <div class="field">
+        <label for="password_confirm">Confirmar</label>
+        <input type="password" id="password_confirm" name="password_confirm" required
+               minlength="8" autocomplete="new-password">
+      </div>
+
+      <button class="btn btn--primary btn--lg btn--block" type="submit">Guardar e entrar</button>
+    </form>
+  </article>
+</section>
+
+<%- include('../partials/footer') %>

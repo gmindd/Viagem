@@ -683,7 +683,8 @@ a:hover {
 
 /* Excepção: enquanto se combinam datas, o calendário é a acção principal
    e tem de ser a primeira coisa a aparecer. */
-.event-layout--datas .event-side {
+.event-layout--datas .event-side,
+.event-layout--propostas .event-side {
   order: 0;
 }
 
@@ -1564,5 +1565,318 @@ a:hover {
   *::after {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+/* Rótulo com acção ao lado (ex.: "Palavra-passe" + "Esqueci-me") */
+.field__label-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.field__aside {
+  font-size: 0.85rem;
+  color: var(--color-muted);
+}
+
+/* ------------------------- Quem marcou o quê --------------------------- */
+.who-list {
+  display: grid;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-md);
+}
+
+.who {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  padding: var(--space-sm);
+  background: var(--color-bg);
+  border-radius: var(--radius-sm);
+}
+
+.who__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.who__name {
+  font-weight: 600;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-xs);
+}
+
+.who__count,
+.who__run {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--color-primary-dark);
+  background: var(--color-primary-soft);
+  border-radius: 999px;
+  padding: 0.05rem 0.5rem;
+}
+
+.who__run {
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
+}
+
+.who__dates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+  margin-top: var(--space-xs);
+}
+
+.who__run-chip {
+  font-size: 0.78rem;
+  color: var(--color-muted);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 0.1rem 0.5rem;
+}
+
+/* --------------------------- Propostas de datas ------------------------ */
+.proposals,
+.suggestions {
+  display: grid;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+}
+
+.proposal {
+  padding: var(--space-sm);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.proposal--best {
+  border-color: var(--color-primary);
+  border-left-width: 4px;
+}
+
+.proposal__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.proposal__dates {
+  font-weight: 700;
+}
+
+.proposal__meta {
+  font-size: 0.82rem;
+  color: var(--color-muted);
+}
+
+.proposal__votes {
+  display: grid;
+  gap: var(--space-xs);
+}
+
+.vote-group {
+  font-size: 0.82rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+}
+
+.vote-group__label {
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.vote-group--sim .vote-group__label    { color: var(--color-success); }
+.vote-group--talvez .vote-group__label { color: var(--color-warning); }
+.vote-group--nao .vote-group__label    { color: var(--color-danger); }
+
+.vote-group__names {
+  color: var(--color-muted);
+  overflow-wrap: anywhere;
+}
+
+.proposal__form {
+  gap: var(--space-xs);
+}
+
+.suggestion {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm);
+  background: var(--color-bg);
+  border-radius: var(--radius-sm);
+}
+
+.suggestion > div:first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.suggestion__dates {
+  font-weight: 600;
+}
+
+.suggestion__names {
+  font-size: 0.8rem;
+  color: var(--color-muted);
+  overflow-wrap: anywhere;
+}
+
+/* -------------------------------- Mapa --------------------------------- */
+.map-layout {
+  display: grid;
+  gap: var(--space-md);
+  align-items: start;
+}
+
+.map {
+  height: 60vh;
+  min-height: 22rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  z-index: 1;
+}
+
+.map--splitting {
+  cursor: crosshair;
+}
+
+.map-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-sm);
+}
+
+.map-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+}
+
+.map-filter,
+.map-split-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.25rem 0.6rem;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-surface);
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.map-filter input,
+.map-split-toggle input {
+  accent-color: var(--color-primary);
+}
+
+.map-split-toggle {
+  font-weight: 600;
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.map-hint {
+  margin-top: var(--space-xs);
+  font-size: 0.85rem;
+  color: var(--color-muted);
+}
+
+.map-attribution {
+  margin-top: var(--space-sm);
+  font-size: 0.78rem;
+  color: var(--color-muted);
+}
+
+/* Marcadores desenhados por nós, para não depender de imagens externas */
+.poi-pin__dot {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid var(--color-muted);
+  font-size: 13px;
+  box-shadow: var(--shadow-sm);
+}
+
+.split-pin__mark {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  border: 2px solid var(--color-primary);
+  color: var(--color-primary-dark);
+  font-size: 11px;
+  font-weight: 700;
+  transform: rotate(45deg);
+  box-shadow: var(--shadow-sm);
+}
+
+.split-pin__mark--mine {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: #fff;
+}
+
+.poi-popup__details {
+  color: var(--color-muted);
+  font-size: 0.85em;
+}
+
+.splits {
+  display: grid;
+  gap: var(--space-xs);
+}
+
+.split {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-xs) var(--space-sm);
+  background: var(--color-bg);
+  border-radius: var(--radius-sm);
+}
+
+.split__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.split__title {
+  font-weight: 600;
+}
+
+.split__author {
+  font-size: 0.78rem;
+  color: var(--color-muted);
+}
+
+.split .link-button {
+  margin-top: 0;
+}
+
+@media (min-width: 64rem) {
+  .map-layout {
+    grid-template-columns: minmax(0, 2fr) minmax(17rem, 1fr);
+    gap: var(--space-lg);
   }
 }

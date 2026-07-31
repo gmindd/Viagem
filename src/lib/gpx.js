@@ -39,6 +39,7 @@ export function parseGpx(content) {
   let elevationGain = 0;
   let lastElevation = null;
   let points = 0;
+  const coords = [];
 
   TRKPT.lastIndex = 0;
   let match = TRKPT.exec(content);
@@ -50,6 +51,7 @@ export function parseGpx(content) {
 
     if (Number.isFinite(lat) && Number.isFinite(lon) && Math.abs(lat) <= 90 && Math.abs(lon) <= 180) {
       points += 1;
+      coords.push([lat, lon]);
 
       if (previous) {
         distanceM += haversine(previous.lat, previous.lon, lat, lon);
@@ -86,8 +88,99 @@ export function parseGpx(content) {
     name: nameMatch ? decodeEntities(nameMatch[1].trim()) : '',
     points,
     distanceKm: Math.round((distanceM / 1000) * 10) / 10,
-    elevationM: Math.round(elevationGain)
+    elevationM: Math.round(elevationGain),
+    track: coords
   };
+}
+
+/**
+ * Reduz o traçado a um número de pontos manejável para desenhar no mapa,
+ * mantendo a forma (algoritmo de Ramer–Douglas–Peucker).
+ * Um GPX de uma etapa longa tem dezenas de milhares de pontos; enviá-los
+ * todos para o browser tornaria o mapa lento sem se notar diferença.
+ */
+export function simplifyTrack(coords, tolerance = 0.00008, maxPoints = 3000) {
+  if (coords.length <= 2) return coords;
+
+  let simplified = douglasPeucker(coords, tolerance);
+
+  // Se ainda for grande de mais, aumenta a tolerância em vez de cortar a eito,
+  // para não perder curvas inteiras do percurso.
+  let attempts = 0;
+  let t = tolerance;
+  while (simplified.length > maxPoints && attempts < 8) {
+    t *= 2;
+    simplified = douglasPeucker(coords, t);
+    attempts += 1;
+  }
+  return simplified;
+}
+
+/** Distância perpendicular de um ponto ao segmento definido por dois outros. */
+function perpendicularDistance([lat, lon], [lat1, lon1], [lat2, lon2]) {
+  const dx = lat2 - lat1;
+  const dy = lon2 - lon1;
+  if (dx === 0 && dy === 0) return Math.hypot(lat - lat1, lon - lon1);
+  const t = ((lat - lat1) * dx + (lon - lon1) * dy) / (dx * dx + dy * dy);
+  const clamped = Math.max(0, Math.min(1, t));
+  return Math.hypot(lat - (lat1 + clamped * dx), lon - (lon1 + clamped * dy));
+}
+
+/** Implementação iterativa, para não estourar a pilha em percursos longos. */
+function douglasPeucker(points, tolerance) {
+  const keep = new Uint8Array(points.length);
+  keep[0] = 1;
+  keep[points.length - 1] = 1;
+
+  const stack = [[0, points.length - 1]];
+  while (stack.length) {
+    const [first, last] = stack.pop();
+    let maxDist = 0;
+    let index = -1;
+
+    for (let i = first + 1; i < last; i += 1) {
+      const dist = perpendicularDistance(points[i], points[first], points[last]);
+      if (dist > maxDist) {
+        maxDist = dist;
+        index = i;
+      }
+    }
+
+    if (index !== -1 && maxDist > tolerance) {
+      keep[index] = 1;
+      stack.push([first, index], [index, last]);
+    }
+  }
+
+  return points.filter((_, i) => keep[i]);
+}
+
+/**
+ * Distância acumulada, em km, ao longo do traçado.
+ * Usada para dizer a que quilómetro fica um ponto de divisão da rota.
+ */
+export function cumulativeDistances(track) {
+  const out = [0];
+  for (let i = 1; i < track.length; i += 1) {
+    const d = haversine(track[i - 1][0], track[i - 1][1], track[i][0], track[i][1]);
+    out.push(out[i - 1] + d / 1000);
+  }
+  return out;
+}
+
+/** Caixa envolvente do traçado, para centrar o mapa e consultar POIs. */
+export function boundingBox(track) {
+  let minLat = 90;
+  let maxLat = -90;
+  let minLon = 180;
+  let maxLon = -180;
+  for (const [lat, lon] of track) {
+    if (lat < minLat) minLat = lat;
+    if (lat > maxLat) maxLat = lat;
+    if (lon < minLon) minLon = lon;
+    if (lon > maxLon) maxLon = lon;
+  }
+  return { minLat, maxLat, minLon, maxLon };
 }
 
 /** Descodifica as entidades XML que aparecem em nomes de percursos. */

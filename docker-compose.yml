@@ -17,6 +17,10 @@ services:
       # URL público, usado nos links de partilha dos passeios.
       BASE_URL: ${BASE_URL:-}
       APP_NAME: ${APP_NAME:-Viagem}
+      # Emails (recuperação de palavra-passe e avisos). Opcionais: sem eles a
+      # app funciona, mas não envia nada — ver README.
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      EMAIL_FROM: ${EMAIL_FROM:-}
       # Fuso horário do contentor: afecta as horas mostradas no mural.
       TZ: ${TZ:-Europe/Lisbon}
     volumes:

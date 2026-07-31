@@ -43,6 +43,7 @@
 
           <div class="route__actions">
             <% if (r.file_name) { %>
+              <a class="btn btn--secondary btn--sm" href="/e/<%= event.slug %>/percursos/<%= r.id %>/mapa">Mapa</a>
               <a class="btn btn--ghost btn--sm" href="/e/<%= event.slug %>/percursos/<%= r.id %>/gpx">GPX</a>
             <% } %>
             <% if (r.external_url) { %>

@@ -4,7 +4,8 @@ import crypto from 'node:crypto';
 import express from 'express';
 import multer from 'multer';
 import { db, UPLOADS_DIR } from '../lib/db.js';
-import { parseGpx } from '../lib/gpx.js';
+import { parseGpx, simplifyTrack, cumulativeDistances } from '../lib/gpx.js';
+import { getPois, cachedPois, POI_KINDS } from '../lib/pois.js';
 import { cleanText, toNumberOrNull, safeUrl } from '../lib/helpers.js';
 import { verifyPendingCsrf } from '../middleware/csrf.js';
 import { requireOpen, requireMember, requireOwner } from '../middleware/event-guards.js';
@@ -32,9 +33,33 @@ function uploadWithCsrf(field) {
 
 const insertRoute = db.prepare(
   `INSERT INTO event_routes (event_id, day_number, title, notes, file_name, original_name,
-                             external_url, distance_km, elevation_m, size_bytes, uploaded_by, position)
+                             external_url, distance_km, elevation_m, size_bytes, uploaded_by,
+                             position, track_json)
    VALUES (@event_id, @day_number, @title, @notes, @file_name, @original_name,
-           @external_url, @distance_km, @elevation_m, @size_bytes, @uploaded_by, @position)`
+           @external_url, @distance_km, @elevation_m, @size_bytes, @uploaded_by,
+           @position, @track_json)`
+);
+
+/* --- Divisão da rota em etapas ------------------------------------- */
+
+const insertSplit = db.prepare(
+  `INSERT INTO route_splits (route_id, user_id, position_km, lat, lon, note)
+   VALUES (@route_id, @user_id, @position_km, @lat, @lon, @note)`
+);
+const deleteSplit = db.prepare('DELETE FROM route_splits WHERE id = ? AND route_id = ?');
+const findSplit = db.prepare('SELECT * FROM route_splits WHERE id = ? AND route_id = ?');
+const listSplits = db.prepare(
+  `SELECT s.*, u.name AS author_name
+   FROM route_splits s JOIN users u ON u.id = s.user_id
+   WHERE s.route_id = ? ORDER BY s.position_km ASC`
+);
+const countSplitsByUser = db.prepare(
+  'SELECT COUNT(*) AS n FROM route_splits WHERE route_id = ? AND user_id = ?'
+);
+
+/** Quantas propostas de divisão tem cada percurso, para o resumo. */
+export const countSplits = db.prepare(
+  'SELECT COUNT(*) AS n FROM route_splits WHERE route_id = ?'
 );
 const findRoute = db.prepare('SELECT * FROM event_routes WHERE id = ? AND event_id = ?');
 const deleteRoute = db.prepare('DELETE FROM event_routes WHERE id = ?');
@@ -113,6 +138,10 @@ router.post('/percursos', requireOwner, uploadWithCsrf('gpx'), (req, res) => {
     fs.writeFileSync(path.join(dir, fileName), file.buffer);
   }
 
+  // Guarda o traçado já simplificado: o mapa lê-o daqui em vez de reabrir
+  // e reprocessar o ficheiro GPX a cada visita à página.
+  const track = parsed?.track?.length ? simplifyTrack(parsed.track) : null;
+
   insertRoute.run({
     event_id: event.id,
     day_number: dayNumber !== null && dayNumber >= 1 ? Math.floor(dayNumber) : null,
@@ -125,7 +154,8 @@ router.post('/percursos', requireOwner, uploadWithCsrf('gpx'), (req, res) => {
     elevation_m: parsed?.elevationM ?? toNumberOrNull(req.body.elevation_m),
     size_bytes: file?.size ?? null,
     uploaded_by: req.user.id,
-    position: nextPosition.get(event.id).p
+    position: nextPosition.get(event.id).p,
+    track_json: track ? JSON.stringify(track) : null
   });
 
   res.flash('success', 'Percurso adicionado.');
@@ -158,6 +188,151 @@ router.post('/percursos/:id/apagar', requireOwner, (req, res) => {
     res.flash('success', 'Percurso removido.');
   }
   return res.redirect(`/e/${req.event.slug}#percursos`);
+});
+
+/* ------------------------------------------------------------------ */
+/* Mapa: traçado, divisões e pontos de interesse                       */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Tudo o que o mapa precisa, num só pedido: traçado, divisões propostas
+ * e pontos de interesse já em cache. Os POIs só são actualizados a pedido,
+ * para não consultar a Overpass em cada abertura da página.
+ */
+router.get('/percursos/:id/mapa.json', requireOpen, requireMember, (req, res) => {
+  const route = findRoute.get(Number(req.params.id), req.event.id);
+  if (!route) return res.status(404).json({ error: 'Percurso não encontrado.' });
+
+  let track = [];
+  try {
+    track = route.track_json ? JSON.parse(route.track_json) : [];
+  } catch {
+    track = [];
+  }
+
+  res.json({
+    route: {
+      id: route.id,
+      title: route.title,
+      distanceKm: route.distance_km,
+      elevationM: route.elevation_m,
+      dayNumber: route.day_number
+    },
+    track,
+    splits: listSplits.all(route.id).map((s) => ({
+      id: s.id,
+      positionKm: s.position_km,
+      lat: s.lat,
+      lon: s.lon,
+      note: s.note,
+      author: s.author_name,
+      mine: s.user_id === req.user.id
+    })),
+    pois: cachedPois(route.id).map((p) => ({
+      id: p.id,
+      kind: p.kind,
+      name: p.name,
+      lat: p.lat,
+      lon: p.lon,
+      details: p.details,
+      source: p.source
+    })),
+    kinds: POI_KINDS.map(({ value, label, emoji }) => ({ value, label, emoji })),
+    canEditPois: req.isOwner
+  });
+});
+
+/** Vai buscar pontos de interesse ao OpenStreetMap ao longo do percurso. */
+router.post('/percursos/:id/pois', requireOpen, requireMember, async (req, res) => {
+  const route = findRoute.get(Number(req.params.id), req.event.id);
+  if (!route) {
+    res.flash('error', 'Percurso não encontrado.');
+    return res.redirect(`/e/${req.event.slug}#percursos`);
+  }
+
+  const radius = Math.min(3000, Math.max(200, Number(req.body.radius) || 800));
+  const { pois, error } = await getPois(route, { radiusM: radius, force: true });
+
+  res.flash(
+    error ? 'error' : 'success',
+    error || `Encontrámos ${pois.length} pontos de interesse até ${radius} m do percurso.`
+  );
+  return res.redirect(`/e/${req.event.slug}/percursos/${route.id}/mapa`);
+});
+
+/** Página do mapa de um percurso. */
+router.get('/percursos/:id/mapa', requireOpen, requireMember, (req, res) => {
+  const route = findRoute.get(Number(req.params.id), req.event.id);
+  if (!route) {
+    return res.status(404).render('error', {
+      title: 'Percurso não encontrado',
+      status: 404,
+      message: 'Este percurso já não existe.'
+    });
+  }
+
+  res.render('events/map', {
+    title: `${route.title} — mapa`,
+    event: req.event,
+    route,
+    isOwner: req.isOwner,
+    splits: listSplits.all(route.id),
+    poiCount: cachedPois(route.id).length,
+    kinds: POI_KINDS,
+    hasTrack: Boolean(route.track_json)
+  });
+});
+
+/* --- Divisões propostas por cada participante ---------------------- */
+
+const MAX_SPLITS_PER_PERSON = 20;
+
+router.post('/percursos/:id/divisoes', requireOpen, requireMember, (req, res) => {
+  const route = findRoute.get(Number(req.params.id), req.event.id);
+  if (!route) return res.status(404).json({ error: 'Percurso não encontrado.' });
+
+  const lat = Number(req.body.lat);
+  const lon = Number(req.body.lon);
+  const positionKm = Number(req.body.position_km);
+
+  if (!Number.isFinite(lat) || !Number.isFinite(lon) || !Number.isFinite(positionKm)) {
+    return res.status(400).json({ error: 'Ponto inválido.' });
+  }
+  if (countSplitsByUser.get(route.id, req.user.id).n >= MAX_SPLITS_PER_PERSON) {
+    return res.status(400).json({ error: `Já marcaste o máximo de ${MAX_SPLITS_PER_PERSON} divisões.` });
+  }
+
+  const info = insertSplit.run({
+    route_id: route.id,
+    user_id: req.user.id,
+    position_km: Math.round(positionKm * 100) / 100,
+    lat,
+    lon,
+    note: cleanText(req.body.note, 160)
+  });
+
+  return res.status(201).json({
+    id: info.lastInsertRowid,
+    positionKm: Math.round(positionKm * 100) / 100,
+    lat,
+    lon,
+    note: cleanText(req.body.note, 160),
+    author: req.user.name,
+    mine: true
+  });
+});
+
+router.post('/percursos/:id/divisoes/:splitId/apagar', requireOpen, requireMember, (req, res) => {
+  const route = findRoute.get(Number(req.params.id), req.event.id);
+  const split = route ? findSplit.get(Number(req.params.splitId), route.id) : null;
+
+  // Cada pessoa apaga as suas; quem organiza pode apagar qualquer uma
+  if (!split || (split.user_id !== req.user.id && !req.isOwner)) {
+    return res.status(403).json({ error: 'Não podes apagar esta divisão.' });
+  }
+
+  deleteSplit.run(split.id, route.id);
+  return res.json({ ok: true });
 });
 
 /** Erros do multer (ficheiro grande demais) em mensagem legível. */

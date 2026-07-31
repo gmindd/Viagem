@@ -12,6 +12,7 @@ import {
   joinRequestFor
 } from '../lib/access.js';
 import { requireOwner } from '../middleware/event-guards.js';
+import { sendEmail, joinRequestEmail, joinDecisionEmail } from '../lib/email.js';
 
 /** Acções de quem quer entrar ou sair: qualquer utilizador com sessão. */
 export const router = express.Router({ mergeParams: true });
@@ -40,6 +41,7 @@ const decideRequest = db.prepare(
   `UPDATE join_requests SET status = ?, decided_at = datetime('now'), decided_by = ?
    WHERE event_id = ? AND user_id = ?`
 );
+const findUser = db.prepare('SELECT id, name, email FROM users WHERE id = ?');
 const findRequestById = db.prepare('SELECT * FROM join_requests WHERE id = ? AND event_id = ?');
 
 export const listPendingRequests = db.prepare(
@@ -164,11 +166,25 @@ router.post('/pedido', (req, res) => {
     return res.redirect(`/e/${event.slug}`);
   }
 
-  upsertRequest.run({
-    event_id: event.id,
-    user_id: req.user.id,
-    message: cleanText(req.body.message, 300)
-  });
+  const message = cleanText(req.body.message, 300);
+  upsertRequest.run({ event_id: event.id, user_id: req.user.id, message });
+
+  // O email é um extra: se falhar, o pedido fica na mesma à espera na app
+  const owner = findUser.get(event.owner_id);
+  if (owner) {
+    sendEmail({
+      to: owner.email,
+      ...joinRequestEmail({
+        ownerName: owner.name,
+        requesterName: req.user.name,
+        requesterEmail: req.user.email,
+        eventTitle: event.title,
+        message,
+        url: `${req.appBaseUrl}/pedidos`,
+        appName: req.app.locals.appName
+      })
+    }).catch(() => {});
+  }
 
   res.flash('success', 'Pedido enviado. Quem organiza vai receber-te na lista.');
   return res.redirect(`/e/${event.slug}`);
@@ -181,6 +197,22 @@ router.post('/pedido', (req, res) => {
  */
 function afterDecision(req) {
   return req.body.voltar === 'pedidos' ? '/pedidos' : `/e/${req.event.slug}#pedidos`;
+}
+
+/** Avisa por email quem pediu para entrar, assim que houver decisão. */
+function notifyDecision(req, userId, accepted) {
+  const person = findUser.get(userId);
+  if (!person) return;
+  sendEmail({
+    to: person.email,
+    ...joinDecisionEmail({
+      name: person.name,
+      eventTitle: req.event.title,
+      accepted,
+      url: `${req.appBaseUrl}/e/${req.event.slug}`,
+      appName: req.app.locals.appName
+    })
+  }).catch(() => {});
 }
 
 ownerRouter.post('/pedidos/:id/aceitar', requireOwner, (req, res) => {
@@ -196,6 +228,7 @@ ownerRouter.post('/pedidos/:id/aceitar', requireOwner, (req, res) => {
       });
     });
     accept();
+    notifyDecision(req, request.user_id, true);
     res.flash('success', 'Pedido aceite.');
   }
   return res.redirect(afterDecision(req));
@@ -205,6 +238,7 @@ ownerRouter.post('/pedidos/:id/recusar', requireOwner, (req, res) => {
   const request = findRequestById.get(Number(req.params.id), req.event.id);
   if (request) {
     decideRequest.run('recusado', req.user.id, req.event.id, request.user_id);
+    notifyDecision(req, request.user_id, false);
     res.flash('success', 'Pedido recusado.');
   }
   return res.redirect(afterDecision(req));

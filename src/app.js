@@ -8,7 +8,9 @@ import { loadUser } from './middleware/auth.js';
 import { csrf } from './middleware/csrf.js';
 import { flash } from './middleware/flash.js';
 import { pendingBadge } from './lib/notifications.js';
+import { VOTE_LABELS } from './routes/proposals.js';
 import { router as authRouter } from './routes/auth.js';
+import { router as passwordResetRouter } from './routes/password-reset.js';
 import { router as profileRouter } from './routes/profile.js';
 import { router as eventsRouter } from './routes/events.js';
 import {
@@ -47,7 +49,9 @@ export function createApp() {
           defaultSrc: ["'self'"],
           scriptSrc: ["'self'"],
           styleSrc: ["'self'"],
-          imgSrc: ["'self'", 'data:'],
+          // Os mosaicos do mapa vêm do OpenStreetMap; o resto continua local
+          imgSrc: ["'self'", 'data:', 'https://*.tile.openstreetmap.org'],
+          connectSrc: ["'self'"],
           formAction: ["'self'"],
           frameAncestors: ["'none'"],
           objectSrc: ["'none'"],
@@ -59,7 +63,6 @@ export function createApp() {
     })
   );
 
-  app.use(express.urlencoded({ extended: false, limit: '100kb' }));
   app.use(express.static(path.join(rootDir, 'public'), { maxAge: isProduction ? '7d' : 0 }));
 
   app.use(
@@ -91,6 +94,14 @@ export function createApp() {
   app.use(flash);
   app.use(loadUser);
   app.use(pendingBadge);
+
+  // A leitura do corpo vem depois da sessão e dos dados do cabeçalho, de
+  // propósito: um corpo mal formado rebenta aqui, e a página de erro precisa
+  // desses dados para se desenhar. Tem de vir antes do csrf, que lê o corpo.
+  app.use(express.urlencoded({ extended: false, limit: '100kb' }));
+  // O mapa marca as divisões da rota via fetch, em JSON
+  app.use(express.json({ limit: '32kb' }));
+
   app.use(csrf);
 
   // Helpers disponíveis em todas as vistas
@@ -107,6 +118,7 @@ export function createApp() {
   app.locals.VISIBILITIES = VISIBILITIES;
   app.locals.JOIN_POLICIES = JOIN_POLICIES;
   app.locals.WEEKDAYS = WEEKDAY_INITIALS_PT;
+  app.locals.VOTE_LABELS = VOTE_LABELS;
   app.locals.appName = process.env.APP_NAME || 'Viagem';
 
   app.get('/', (req, res) => {
@@ -118,6 +130,7 @@ export function createApp() {
   app.get('/healthz', (req, res) => res.json({ ok: true }));
 
   app.use(authRouter);
+  app.use(passwordResetRouter);
   app.use(profileRouter);
   app.use(eventsRouter);
 
@@ -131,11 +144,33 @@ export function createApp() {
 
   // eslint-disable-next-line no-unused-vars -- o Express exige os 4 argumentos
   app.use((err, req, res, next) => {
-    console.error(err);
-    res.status(500).render('error', {
-      title: 'Erro',
-      status: 500,
-      message: 'Algo correu mal do nosso lado. Tenta de novo daqui a pouco.'
+    // Corpo mal formado ou grande de mais é culpa do pedido, não do servidor:
+    // responder 500 escondia a causa e sujava o log com erros que não são bugs.
+    const isBadBody = err.type === 'entity.parse.failed' || err.type === 'entity.too.large';
+    const status = isBadBody ? 400 : 500;
+
+    if (!isBadBody) console.error(err);
+
+    // Rede de segurança: se o erro acontecer antes dos middlewares que enchem
+    // res.locals, a página de erro não teria os dados que o cabeçalho usa e
+    // falhava a renderizar — trocando um erro tratado por um 500 em branco.
+    res.locals.user ??= null;
+    res.locals.csrfToken ??= '';
+    res.locals.pendingTotal ??= 0;
+    res.locals.currentPath ??= req.path;
+    res.locals.flash ??= null;
+
+    if (req.accepts('html')) {
+      return res.status(status).render('error', {
+        title: isBadBody ? 'Pedido inválido' : 'Erro',
+        status,
+        message: isBadBody
+          ? 'O pedido chegou mal formado. Volta atrás e tenta de novo.'
+          : 'Algo correu mal do nosso lado. Tenta de novo daqui a pouco.'
+      });
+    }
+    return res.status(status).json({
+      error: isBadBody ? 'Pedido inválido.' : 'Erro interno.'
     });
   });
 

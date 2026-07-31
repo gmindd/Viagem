@@ -21,6 +21,7 @@
     "express-rate-limit": "^8.1.0",
     "express-session": "^1.18.1",
     "helmet": "^8.1.0",
+    "leaflet": "^1.9.4",
     "multer": "^2.2.0"
   }
 }

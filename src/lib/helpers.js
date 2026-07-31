@@ -132,6 +132,12 @@ export const PHASES = [
     description: 'Ainda não há data. Cada pessoa marca no calendário os dias em que pode.'
   },
   {
+    value: 'propostas',
+    label: 'A votar nas datas',
+    short: 'Propostas',
+    description: 'Recolhidas as disponibilidades, ficam algumas datas em cima da mesa para o grupo votar.'
+  },
+  {
     value: 'preparacao',
     label: 'Preparação',
     short: 'Preparação',
@@ -258,6 +264,82 @@ const MONTHS_LONG_PT = [
 ];
 
 export const WEEKDAY_INITIALS_PT = ['S', 'T', 'Q', 'Q', 'S', 'S', 'D'];
+
+/** Soma dias a uma data ISO, em UTC para não sofrer com fusos. */
+export function addDays(isoDate, days) {
+  const d = new Date(`${isoDate}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+/** Número de dias entre duas datas ISO, inclusive (12→14 = 3 dias). */
+export function daysBetween(startIso, endIso) {
+  const a = new Date(`${startIso}T00:00:00Z`).getTime();
+  const b = new Date(`${endIso}T00:00:00Z`).getTime();
+  if (Number.isNaN(a) || Number.isNaN(b)) return 0;
+  return Math.round((b - a) / 86400000) + 1;
+}
+
+/**
+ * Parte uma lista de datas ISO em blocos de dias consecutivos.
+ * Ex.: [1,2,3,7,8] → [[1,2,3],[7,8]]
+ */
+export function consecutiveRuns(isoDates) {
+  const sorted = [...new Set(isoDates)].sort();
+  const runs = [];
+  let current = [];
+
+  for (const iso of sorted) {
+    if (current.length && addDays(current[current.length - 1], 1) === iso) {
+      current.push(iso);
+    } else {
+      if (current.length) runs.push(current);
+      current = [iso];
+    }
+  }
+  if (current.length) runs.push(current);
+  return runs;
+}
+
+/** O bloco seguido mais longo dentro de uma lista de datas. */
+export function longestRun(isoDates) {
+  return consecutiveRuns(isoDates).reduce((max, run) => Math.max(max, run.length), 0);
+}
+
+/**
+ * Verifica se as datas marcadas chegam para a viagem.
+ * Devolve { ok, error } — com dias seguidos exige um bloco contínuo do
+ * tamanho da viagem, não apenas o número total de dias.
+ */
+export function checkAvailabilityFits(isoDates, tripDays, continuous) {
+  const dates = [...new Set(isoDates)];
+  if (!tripDays || tripDays < 1) return { ok: true };
+  if (dates.length === 0) return { ok: true };
+
+  if (continuous) {
+    const run = longestRun(dates);
+    if (run < tripDays) {
+      return {
+        ok: false,
+        error:
+          `A viagem é de ${tripDays} dias seguidos. Marcaste ${dates.length} ` +
+          `dia${dates.length === 1 ? '' : 's'}, mas o teu bloco mais longo é de ` +
+          `${run} dia${run === 1 ? '' : 's'} seguidos. Marca pelo menos ${tripDays} dias consecutivos.`
+      };
+    }
+    return { ok: true };
+  }
+
+  if (dates.length < tripDays) {
+    return {
+      ok: false,
+      error:
+        `A viagem é de ${tripDays} dias. Marcaste ${dates.length} — ` +
+        `escolhe pelo menos mais ${tripDays - dates.length}.`
+    };
+  }
+  return { ok: true };
+}
 
 /** Devolve o rótulo legível de um valor guardado numa lista de opções. */
 export function labelFor(list, value) {

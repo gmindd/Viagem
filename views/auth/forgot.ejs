@@ -1,0 +1,46 @@
+<%- include('../partials/header') %>
+
+<section class="container narrow section">
+  <article class="panel">
+    <h1>Recuperar palavra-passe</h1>
+
+    <% if (sent) { %>
+      <p class="alert alert--success">
+        Se existir uma conta com esse email, enviámos-te um link para definires
+        uma palavra-passe nova. Verifica também a pasta de spam.
+      </p>
+      <p class="muted">O link é válido durante 2 horas e só pode ser usado uma vez.</p>
+
+      <% if (!emailConfigured) { %>
+        <p class="notice">
+          <strong>Atenção:</strong> o envio de emails ainda não está configurado neste
+          servidor, por isso nenhum email foi realmente enviado. Falta definir
+          <code>RESEND_API_KEY</code> e <code>EMAIL_FROM</code>.
+        </p>
+      <% } %>
+
+      <p class="form-footer"><a href="/entrar">Voltar ao início de sessão</a></p>
+
+    <% } else { %>
+      <p class="muted">
+        Escreve o teu email e enviamos-te um link para definires uma palavra-passe nova.
+      </p>
+
+      <%- include('../partials/errors') %>
+
+      <form class="form" method="post" action="/recuperar" novalidate>
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <div class="field">
+          <label for="email">Email</label>
+          <input type="email" id="email" name="email" value="<%= values.email || '' %>"
+                 required autocomplete="email" autofocus>
+        </div>
+        <button class="btn btn--primary btn--lg btn--block" type="submit">Enviar link</button>
+      </form>
+
+      <p class="form-footer">Lembraste-te? <a href="/entrar">Inicia sessão</a>.</p>
+    <% } %>
+  </article>
+</section>
+
+<%- include('../partials/footer') %>

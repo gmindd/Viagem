@@ -80,13 +80,14 @@
           </section>
         <% } %>
 
-        <%# Fase "datas": o calendário é o centro da página %>
-        <% if (event.phase === 'datas') { %>
+        <%# Fases de datas e propostas: combinar quando é que a viagem acontece %>
+        <% if (event.phase === 'datas' || event.phase === 'propostas') { %>
           <%- include('../partials/event/calendar') %>
+          <%- include('../partials/event/proposals') %>
         <% } %>
 
         <%# A partir da preparação, os percursos e a logística %>
-        <% if (event.phase !== 'datas') { %>
+        <% if (event.phase !== 'datas' && event.phase !== 'propostas') { %>
           <section class="panel" aria-labelledby="titulo-detalhes">
             <h2 id="titulo-detalhes">Detalhes</h2>
             <dl class="details">
