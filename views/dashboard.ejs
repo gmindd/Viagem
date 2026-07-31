@@ -3,10 +3,10 @@
 <section class="container section">
   <header class="page-head">
     <div>
-      <h1>Os meus passeios</h1>
-      <p class="muted">Olá, <%= user.name %>. Aqui estão os passeios que organizas e aqueles em que te inscreveste.</p>
+      <h1>As minhas viagens</h1>
+      <p class="muted">Olá, <%= user.name %>. Aqui estão as viagens que organizas e aquelas de que fazes parte.</p>
     </div>
-    <a class="btn btn--primary" href="/eventos/novo">Criar passeio</a>
+    <a class="btn btn--primary" href="/eventos/novo">Criar viagem</a>
   </header>
 
   <section class="section-block" aria-labelledby="titulo-organizo">
@@ -19,14 +19,14 @@
       </ul>
     <% } else { %>
       <div class="empty">
-        <p>Ainda não criaste nenhum passeio.</p>
-        <a class="btn btn--primary" href="/eventos/novo">Criar o primeiro</a>
+        <p>Ainda não criaste nenhuma viagem.</p>
+        <a class="btn btn--primary" href="/eventos/novo">Criar a primeira</a>
       </div>
     <% } %>
   </section>
 
   <section class="section-block" aria-labelledby="titulo-inscrito">
-    <h2 class="section-title" id="titulo-inscrito">Estou inscrito</h2>
+    <h2 class="section-title" id="titulo-inscrito">Faço parte</h2>
     <% if (joined.length) { %>
       <ul class="event-grid">
         <% joined.forEach((event) => { %>
@@ -35,7 +35,7 @@
       </ul>
     <% } else { %>
       <div class="empty">
-        <p>Ainda não te inscreveste em passeios de outras pessoas. Pede o link a quem organiza.</p>
+        <p>Ainda não entraste em viagens de outras pessoas. Pede o link a quem organiza, ou vê as <a href="/viagens">viagens públicas</a>.</p>
       </div>
     <% } %>
   </section>

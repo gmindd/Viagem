@@ -7,6 +7,7 @@ import { SqliteSessionStore } from './lib/session-store.js';
 import { loadUser } from './middleware/auth.js';
 import { csrf } from './middleware/csrf.js';
 import { flash } from './middleware/flash.js';
+import { pendingBadge } from './lib/notifications.js';
 import { router as authRouter } from './routes/auth.js';
 import { router as profileRouter } from './routes/profile.js';
 import { router as eventsRouter } from './routes/events.js';
@@ -89,6 +90,7 @@ export function createApp() {
 
   app.use(flash);
   app.use(loadUser);
+  app.use(pendingBadge);
   app.use(csrf);
 
   // Helpers disponíveis em todas as vistas

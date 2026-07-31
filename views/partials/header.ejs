@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Organiza passeios de bicicleta com os teus amigos: datas, percursos, inscrições e contactos num só sítio.">
+  <meta name="description" content="Organiza viagens de bicicleta com os teus amigos: datas, percursos, inscrições e contactos num só sítio.">
   <meta name="theme-color" content="#0f766e">
   <title><%= title %> · <%= appName %></title>
   <link rel="icon" href="/assets/images/favicon.svg" type="image/svg+xml">
@@ -36,6 +36,12 @@
         <a class="nav__link<%= currentPath === '/viagens' ? ' is-active' : '' %>" href="/viagens">Descobrir</a>
         <% if (user) { %>
           <a class="nav__link<%= currentPath === '/painel' ? ' is-active' : '' %>" href="/painel">As minhas</a>
+          <% if (pendingTotal > 0) { %>
+            <a class="nav__alert" href="/pedidos">
+              <span class="nav__alert-count"><%= pendingTotal %></span>
+              pedido<%= pendingTotal === 1 ? '' : 's' %> para aceitar
+            </a>
+          <% } %>
           <a class="nav__link<%= currentPath === '/perfil' ? ' is-active' : '' %>" href="/perfil">Perfil</a>
           <a class="btn btn--primary btn--sm" href="/eventos/novo">Criar viagem</a>
           <form class="nav__form" method="post" action="/sair">

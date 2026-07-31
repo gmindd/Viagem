@@ -166,6 +166,25 @@ export const MIGRATIONS = [
   }
 ];
 
+MIGRATIONS.push({
+  version: 3,
+  name: 'Quem organiza passa a constar na lista de participantes',
+  up(db) {
+    // Quem cria a viagem obviamente vai, mas nunca era inscrito: a lista
+    // aparecia a zero e o botão de guardar a resposta não fazia nada, porque
+    // actualizava uma linha que não existia.
+    // Sempre 'going': quem organiza vai, mesmo enquanto a data não está fechada.
+    db.exec(`
+      INSERT INTO participants (event_id, user_id, status, joined_via)
+      SELECT e.id, e.owner_id, 'going', 'organizador'
+      FROM events e
+      WHERE NOT EXISTS (
+        SELECT 1 FROM participants p WHERE p.event_id = e.id AND p.user_id = e.owner_id
+      )
+    `);
+  }
+});
+
 export const LATEST_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;
 
 /* ------------------------------------------------------------------ */

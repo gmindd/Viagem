@@ -22,6 +22,7 @@ import {
   joinOptionFor,
   joinRequestFor
 } from '../lib/access.js';
+import { listPendingForOwner } from '../lib/notifications.js';
 import { router as availabilityRouter, buildAvailability } from './availability.js';
 import {
   router as gpxRouter,
@@ -110,9 +111,20 @@ const listParticipants = db.prepare(
 );
 
 const getParticipation = db.prepare('SELECT * FROM participants WHERE event_id = ? AND user_id = ?');
+// Upsert em vez de UPDATE: se por alguma razão a linha não existir, a resposta
+// é criada em vez de se perder em silêncio.
 const updateStatus = db.prepare(
-  `UPDATE participants SET status = ?, note = ?, updated_at = datetime('now')
-   WHERE event_id = ? AND user_id = ?`
+  `INSERT INTO participants (event_id, user_id, status, note, joined_via)
+   VALUES (@event_id, @user_id, @status, @note, 'resposta')
+   ON CONFLICT(event_id, user_id)
+   DO UPDATE SET status = @status, note = @note, updated_at = datetime('now')`
+);
+
+// Quem cria a viagem entra logo como participante
+const addOwnerAsParticipant = db.prepare(
+  `INSERT INTO participants (event_id, user_id, status, joined_via)
+   VALUES (?, ?, ?, 'organizador')
+   ON CONFLICT(event_id, user_id) DO NOTHING`
 );
 const removeParticipation = db.prepare('DELETE FROM participants WHERE event_id = ? AND user_id = ?');
 
@@ -163,6 +175,13 @@ router.get('/painel', requireAuth, (req, res) => {
     title: 'As minhas viagens',
     owned: listOwnedEvents.all(req.user.id),
     joined: listJoinedEvents.all(req.user.id, req.user.id)
+  });
+});
+
+router.get('/pedidos', requireAuth, (req, res) => {
+  res.render('requests', {
+    title: 'Pedidos para entrar',
+    requests: listPendingForOwner.all(req.user.id)
   });
 });
 
@@ -219,13 +238,20 @@ router.post('/eventos/novo', requireAuth, async (req, res) => {
   }
 
   const slug = uniqueSlug();
-  insertEvent.run({
-    ...values,
-    owner_id: req.user.id,
-    slug,
-    access_password_hash:
-      values.join_policy === 'palavra_passe' ? await bcrypt.hash(accessPassword, 12) : null
+  const hash =
+    values.join_policy === 'palavra_passe' ? await bcrypt.hash(accessPassword, 12) : null;
+
+  const create = db.transaction(() => {
+    const { lastInsertRowid } = insertEvent.run({
+      ...values,
+      owner_id: req.user.id,
+      slug,
+      access_password_hash: hash
+    });
+    // Quem organiza vai, mesmo na fase em que a data ainda não está fechada
+    addOwnerAsParticipant.run(lastInsertRowid, req.user.id, 'going');
   });
+  create();
 
   res.flash('success', 'Viagem criada. Partilha o link com o pessoal!');
   return res.redirect(`/e/${slug}`);
@@ -284,7 +310,7 @@ router.post('/e/:slug/estado', loadEvent, requireAuth, requireOpen, requireMembe
     }
   }
 
-  updateStatus.run(status, note, event.id, req.user.id);
+  updateStatus.run({ event_id: event.id, user_id: req.user.id, status, note });
   res.flash('success', 'Actualizámos a tua resposta.');
   return res.redirect(`/e/${event.slug}#participantes`);
 });

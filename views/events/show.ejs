@@ -156,7 +156,14 @@
         <% } %>
 
         <section class="panel" id="participantes" aria-labelledby="titulo-participantes">
-          <h2 id="titulo-participantes">Quem vai <span class="counter"><%= going.length %></span></h2>
+          <%# Enquanto se combinam datas ninguém confirmou ainda: conta o grupo todo %>
+          <h2 id="titulo-participantes">
+            <% if (event.phase === 'datas') { %>
+              No grupo <span class="counter"><%= participants.length %></span>
+            <% } else { %>
+              Quem vai <span class="counter"><%= going.length %></span>
+            <% } %>
+          </h2>
 
           <% [['going', going], ['maybe', maybe], ['out', out]].forEach(([status, lista]) => { %>
             <% if (lista.length) { %>

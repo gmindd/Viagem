@@ -233,6 +233,73 @@ a:hover {
   display: inline-flex;
 }
 
+/* Aviso de pedidos por decidir, visível em qualquer página */
+.nav__alert {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.nav__alert:hover {
+  background: #f8e6c8;
+  color: var(--color-warning);
+}
+
+.nav__alert-count {
+  display: grid;
+  place-items: center;
+  min-width: 1.4rem;
+  height: 1.4rem;
+  border-radius: 50%;
+  background: var(--color-accent);
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+/* Página central de pedidos */
+.request-list {
+  display: grid;
+  gap: var(--space-md);
+}
+
+.request__event {
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: var(--space-sm);
+}
+
+.request__event a {
+  color: var(--color-primary-dark);
+  text-decoration: none;
+}
+
+.request__when {
+  font-size: 0.8rem;
+  color: var(--color-muted);
+  margin-top: var(--space-xs);
+}
+
+.request .participant {
+  background: transparent;
+  padding: 0;
+}
+
+.request .participant__actions {
+  margin-top: var(--space-sm);
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--color-border);
+}
+
 .nav-toggle {
   display: inline-flex;
   flex-direction: column;

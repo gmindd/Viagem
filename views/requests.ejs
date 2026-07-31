@@ -1,0 +1,61 @@
+<%- include('partials/header') %>
+
+<section class="container narrow section">
+  <h1>Pedidos para entrar</h1>
+  <p class="muted">
+    Todas as pessoas que pediram para entrar nas viagens que organizas.
+    Aceitas ou recusas aqui, sem teres de abrir cada viagem.
+  </p>
+
+  <% if (requests.length) { %>
+    <ul class="request-list">
+      <% requests.forEach((r) => { %>
+        <li class="panel request">
+          <p class="request__event">
+            <a href="/e/<%= r.slug %>"><%= r.title %></a>
+          </p>
+
+          <div class="participant">
+            <span class="avatar" aria-hidden="true"><%= r.name.trim().charAt(0).toUpperCase() %></span>
+            <div class="participant__body">
+              <p class="participant__name"><%= r.name %></p>
+              <% if (r.message) { %><p class="participant__note">“<%= r.message %>”</p><% } %>
+              <% if (r.bio) { %><p class="participant__note"><%= r.bio %></p><% } %>
+              <p class="participant__contacts">
+                <a href="mailto:<%= r.email %>"><%= r.email %></a>
+                <% if (r.phone) { %> · <a href="tel:<%= r.phone.replace(/\s/g, '') %>"><%= r.phone %></a><% } %>
+                <% if (r.contact_other) { %> · <%= r.contact_other %><% } %>
+              </p>
+              <p class="request__when">Pediu a <%= formatDateTime(r.created_at) %></p>
+            </div>
+          </div>
+
+          <div class="participant__actions">
+            <form method="post" action="/e/<%= r.slug %>/pedidos/<%= r.id %>/aceitar">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <input type="hidden" name="voltar" value="pedidos">
+              <button class="btn btn--primary btn--sm" type="submit">Aceitar</button>
+            </form>
+            <form method="post" action="/e/<%= r.slug %>/pedidos/<%= r.id %>/recusar">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <input type="hidden" name="voltar" value="pedidos">
+              <button class="btn btn--ghost btn--sm" type="submit"
+                      data-confirm="Recusar o pedido de <%= r.name %>?">Recusar</button>
+            </form>
+          </div>
+        </li>
+      <% }) %>
+    </ul>
+  <% } else { %>
+    <div class="empty">
+      <p>Não há pedidos à espera de resposta.</p>
+      <p class="muted">
+        Quando alguém pedir para entrar numa viagem tua, aparece aqui e também
+        no topo de qualquer página.
+      </p>
+      <a class="btn btn--ghost" href="/painel">Ver as minhas viagens</a>
+    </div>
+  <% } %>
+</section>
+
+<%- include('partials/footer') %>

@@ -174,6 +174,15 @@ router.post('/pedido', (req, res) => {
   return res.redirect(`/e/${event.slug}`);
 });
 
+/**
+ * Para onde voltar depois de decidir um pedido: a página central de pedidos
+ * quando a decisão veio de lá, senão a própria viagem. Só aceita o valor
+ * conhecido, para o campo do formulário não poder redireccionar para fora.
+ */
+function afterDecision(req) {
+  return req.body.voltar === 'pedidos' ? '/pedidos' : `/e/${req.event.slug}#pedidos`;
+}
+
 ownerRouter.post('/pedidos/:id/aceitar', requireOwner, (req, res) => {
   const request = findRequestById.get(Number(req.params.id), req.event.id);
   if (request) {
@@ -189,7 +198,7 @@ ownerRouter.post('/pedidos/:id/aceitar', requireOwner, (req, res) => {
     accept();
     res.flash('success', 'Pedido aceite.');
   }
-  return res.redirect(`/e/${req.event.slug}#pedidos`);
+  return res.redirect(afterDecision(req));
 });
 
 ownerRouter.post('/pedidos/:id/recusar', requireOwner, (req, res) => {
@@ -198,7 +207,7 @@ ownerRouter.post('/pedidos/:id/recusar', requireOwner, (req, res) => {
     decideRequest.run('recusado', req.user.id, req.event.id, request.user_id);
     res.flash('success', 'Pedido recusado.');
   }
-  return res.redirect(`/e/${req.event.slug}#pedidos`);
+  return res.redirect(afterDecision(req));
 });
 
 /* ------------------------------------------------------------------ */
