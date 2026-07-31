@@ -1,0 +1,71 @@
+<%- include('partials/header') %>
+
+<section class="container narrow section">
+  <h1>O meu perfil</h1>
+  <p class="muted">Estes dados são mostrados a quem organiza os passeios em que te inscreves.</p>
+
+  <%- include('partials/errors') %>
+
+  <article class="panel">
+    <h2>Dados e contactos</h2>
+    <form class="form" method="post" action="/perfil" novalidate>
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+      <div class="field">
+        <label for="name">Nome</label>
+        <input type="text" id="name" name="name" value="<%= values.name %>" required maxlength="120" autocomplete="name">
+      </div>
+
+      <div class="field">
+        <label for="email">Email</label>
+        <input type="email" id="email" value="<%= values.email %>" disabled>
+        <p class="field-hint">O email é a tua identificação e não pode ser alterado aqui.</p>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label for="phone">Telemóvel</label>
+          <input type="tel" id="phone" name="phone" value="<%= values.phone %>" maxlength="40" autocomplete="tel">
+        </div>
+        <div class="field">
+          <label for="contact_other">Outro contacto</label>
+          <input type="text" id="contact_other" name="contact_other" value="<%= values.contact_other %>" maxlength="120" placeholder="Instagram, Strava, Telegram…">
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="bio">Nota pessoal</label>
+        <textarea id="bio" name="bio" rows="3" maxlength="500" placeholder="Que bicicleta usas, ritmo habitual, zona onde vives…"><%= values.bio %></textarea>
+      </div>
+
+      <button class="btn btn--primary" type="submit">Guardar alterações</button>
+    </form>
+  </article>
+
+  <article class="panel">
+    <h2>Alterar palavra-passe</h2>
+    <form class="form" method="post" action="/perfil/palavra-passe" novalidate>
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+      <div class="field">
+        <label for="current_password">Palavra-passe actual</label>
+        <input type="password" id="current_password" name="current_password" required autocomplete="current-password">
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label for="new_password">Nova palavra-passe</label>
+          <input type="password" id="new_password" name="new_password" required minlength="8" autocomplete="new-password">
+        </div>
+        <div class="field">
+          <label for="new_password_confirm">Confirmar</label>
+          <input type="password" id="new_password_confirm" name="new_password_confirm" required minlength="8" autocomplete="new-password">
+        </div>
+      </div>
+
+      <button class="btn btn--secondary" type="submit">Alterar palavra-passe</button>
+    </form>
+  </article>
+</section>
+
+<%- include('partials/footer') %>

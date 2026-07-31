@@ -1,0 +1,44 @@
+<%- include('partials/header') %>
+
+<section class="container section">
+  <header class="page-head">
+    <div>
+      <h1>Os meus passeios</h1>
+      <p class="muted">Olá, <%= user.name %>. Aqui estão os passeios que organizas e aqueles em que te inscreveste.</p>
+    </div>
+    <a class="btn btn--primary" href="/eventos/novo">Criar passeio</a>
+  </header>
+
+  <section class="section-block" aria-labelledby="titulo-organizo">
+    <h2 class="section-title" id="titulo-organizo">Organizo eu</h2>
+    <% if (owned.length) { %>
+      <ul class="event-grid">
+        <% owned.forEach((event) => { %>
+          <%- include('partials/event-card', { event }) %>
+        <% }) %>
+      </ul>
+    <% } else { %>
+      <div class="empty">
+        <p>Ainda não criaste nenhum passeio.</p>
+        <a class="btn btn--primary" href="/eventos/novo">Criar o primeiro</a>
+      </div>
+    <% } %>
+  </section>
+
+  <section class="section-block" aria-labelledby="titulo-inscrito">
+    <h2 class="section-title" id="titulo-inscrito">Estou inscrito</h2>
+    <% if (joined.length) { %>
+      <ul class="event-grid">
+        <% joined.forEach((event) => { %>
+          <%- include('partials/event-card', { event }) %>
+        <% }) %>
+      </ul>
+    <% } else { %>
+      <div class="empty">
+        <p>Ainda não te inscreveste em passeios de outras pessoas. Pede o link a quem organiza.</p>
+      </div>
+    <% } %>
+  </section>
+</section>
+
+<%- include('partials/footer') %>

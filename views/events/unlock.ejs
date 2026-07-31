@@ -1,0 +1,30 @@
+<%- include('../partials/header') %>
+
+<section class="container narrow section">
+  <article class="panel panel--center">
+    <p class="lock-icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" focusable="false">
+        <rect x="4" y="10" width="16" height="11" rx="2"></rect>
+        <path d="M8 10V7a4 4 0 0 1 8 0v3"></path>
+      </svg>
+    </p>
+    <h1>Passeio protegido</h1>
+    <p class="lead">
+      <strong><%= event.title %></strong> está reservado. Escreve a palavra-passe
+      que o organizador partilhou para veres os detalhes.
+    </p>
+
+    <%- include('../partials/errors') %>
+
+    <form class="form" method="post" action="/e/<%= event.slug %>/acesso" novalidate>
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <div class="field">
+        <label for="event_password">Palavra-passe do passeio</label>
+        <input type="password" id="event_password" name="event_password" required autofocus autocomplete="off">
+      </div>
+      <button class="btn btn--primary btn--block" type="submit">Ver passeio</button>
+    </form>
+  </article>
+</section>
+
+<%- include('../partials/footer') %>

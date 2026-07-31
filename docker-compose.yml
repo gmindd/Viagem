@@ -1,0 +1,21 @@
+services:
+  viagem:
+    build: .
+    image: viagem:latest
+    container_name: viagem
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      DATABASE_FILE: /data/viagem.db
+      # Fuso horário do contentor: afecta as horas mostradas no mural.
+      TZ: ${TZ:-Europe/Lisbon}
+    volumes:
+      # Base de dados SQLite persistente entre reinícios e actualizações
+      - viagem-data:/data
+    ports:
+      # Só escuta em localhost: o nginx do VPS faz o proxy e trata do HTTPS
+      - "127.0.0.1:3000:3000"
+
+volumes:
+  viagem-data:

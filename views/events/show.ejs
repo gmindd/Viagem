@@ -1,0 +1,242 @@
+<%
+  const past = isPastDate(event.start_date);
+  const going  = participants.filter((p) => p.status === 'going');
+  const maybe  = participants.filter((p) => p.status === 'maybe');
+  const out    = participants.filter((p) => p.status === 'out');
+%>
+<%- include('../partials/header') %>
+
+<article class="event">
+  <header class="event-hero">
+    <div class="container">
+      <p class="event-hero__date">
+        <%= formatDate(event.start_date) %><% if (event.start_time) { %> · <%= event.start_time %><% } %>
+        <% if (event.end_date) { %> até <%= formatDate(event.end_date) %><% } %>
+      </p>
+      <h1><%= event.title %></h1>
+
+      <ul class="chips chips--hero">
+        <% if (event.distance_km) { %><li class="chip"><%= event.distance_km %> km</li><% } %>
+        <% if (event.elevation_m) { %><li class="chip"><%= event.elevation_m %> m D+</li><% } %>
+        <li class="chip"><%= labelFor(DIFFICULTIES, event.difficulty) %></li>
+        <li class="chip"><%= labelFor(BIKE_TYPES, event.bike_type) %></li>
+        <% if (event.visibility === 'password') { %><li class="chip chip--lock">Protegido</li><% } %>
+        <% if (past) { %><li class="chip chip--past">Já foi</li><% } %>
+      </ul>
+
+      <p class="event-hero__owner">Organizado por <strong><%= owner.name %></strong></p>
+    </div>
+  </header>
+
+  <div class="container event-layout section">
+    <div class="event-main">
+      <% if (event.description) { %>
+        <section class="panel" aria-labelledby="titulo-descricao">
+          <h2 id="titulo-descricao">Sobre o passeio</h2>
+          <p class="prose"><%= event.description %></p>
+        </section>
+      <% } %>
+
+      <section class="panel" aria-labelledby="titulo-detalhes">
+        <h2 id="titulo-detalhes">Detalhes</h2>
+        <dl class="details">
+          <div class="details__row">
+            <dt>Encontro</dt>
+            <dd><%= event.meeting_point || 'A combinar' %><% if (event.start_time) { %>, às <%= event.start_time %><% } %></dd>
+          </div>
+          <div class="details__row">
+            <dt>Percurso</dt>
+            <dd>
+              <% if (event.route_url) { %>
+                <a href="<%= event.route_url %>" target="_blank" rel="noopener noreferrer nofollow">Abrir percurso</a>
+              <% } else { %>
+                Ainda não foi partilhado
+              <% } %>
+            </dd>
+          </div>
+          <div class="details__row">
+            <dt>Vagas</dt>
+            <dd>
+              <% if (event.max_participants) { %>
+                <%= goingCount %> de <%= event.max_participants %> ocupadas
+              <% } else { %>
+                Sem limite
+              <% } %>
+            </dd>
+          </div>
+        </dl>
+
+        <% if (event.max_participants) { %>
+          <div class="capacity" role="img" aria-label="<%= goingCount %> de <%= event.max_participants %> vagas ocupadas">
+            <span class="capacity__bar" data-capacity="<%= Math.min(100, Math.round((goingCount / event.max_participants) * 100)) %>"></span>
+          </div>
+        <% } %>
+      </section>
+
+      <section class="panel" id="participantes" aria-labelledby="titulo-participantes">
+        <h2 id="titulo-participantes">Quem vai <span class="counter"><%= going.length %></span></h2>
+
+        <% if (!participants.length) { %>
+          <p class="muted">Ainda ninguém se inscreveu. Sê o primeiro!</p>
+        <% } %>
+
+        <% [['going', going], ['maybe', maybe], ['out', out]].forEach(([status, lista]) => { %>
+          <% if (lista.length) { %>
+            <h3 class="participants__group"><%= STATUS_LABELS[status] %> · <%= lista.length %></h3>
+            <ul class="participants">
+              <% lista.forEach((p) => { %>
+                <li class="participant">
+                  <span class="avatar" aria-hidden="true"><%= p.name.trim().charAt(0).toUpperCase() %></span>
+                  <div class="participant__body">
+                    <p class="participant__name"><%= p.name %></p>
+                    <% if (p.note) { %><p class="participant__note"><%= p.note %></p><% } %>
+                    <% if (isOwner) { %>
+                      <p class="participant__contacts">
+                        <a href="mailto:<%= p.email %>"><%= p.email %></a>
+                        <% if (p.phone) { %> · <a href="tel:<%= p.phone.replace(/\s/g, '') %>"><%= p.phone %></a><% } %>
+                        <% if (p.contact_other) { %> · <%= p.contact_other %><% } %>
+                      </p>
+                    <% } %>
+                  </div>
+                  <% if (isOwner && p.user_id !== owner.id) { %>
+                    <form method="post" action="/e/<%= event.slug %>/participantes/<%= p.user_id %>/remover">
+                      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                      <button class="btn btn--ghost btn--sm" type="submit" data-confirm="Remover <%= p.name %> deste passeio?">Remover</button>
+                    </form>
+                  <% } %>
+                </li>
+              <% }) %>
+            </ul>
+          <% } %>
+        <% }) %>
+
+        <% if (isOwner && participants.length) { %>
+          <p class="participants__export">
+            <a class="btn btn--ghost btn--sm" href="/e/<%= event.slug %>/participantes.csv">Exportar contactos (CSV)</a>
+          </p>
+        <% } %>
+      </section>
+
+      <section class="panel" id="mural" aria-labelledby="titulo-mural">
+        <h2 id="titulo-mural">Mural</h2>
+
+        <% if (comments.length) { %>
+          <ul class="comments">
+            <% comments.forEach((c) => { %>
+              <li class="comment">
+                <div class="comment__head">
+                  <span class="comment__author"><%= c.author_name %></span>
+                  <time class="comment__time"><%= formatDateTime(c.created_at) %></time>
+                </div>
+                <p class="comment__body"><%= c.body %></p>
+                <% if (user && (user.id === c.author_id || isOwner)) { %>
+                  <form class="comment__actions" method="post" action="/e/<%= event.slug %>/comentarios/<%= c.id %>/apagar">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                    <button class="link-button" type="submit" data-confirm="Apagar esta mensagem?">Apagar</button>
+                  </form>
+                <% } %>
+              </li>
+            <% }) %>
+          </ul>
+        <% } else { %>
+          <p class="muted">Sem mensagens. Usa o mural para combinar boleias, ritmo ou paragens.</p>
+        <% } %>
+
+        <% if (user) { %>
+          <form class="form" method="post" action="/e/<%= event.slug %>/comentarios">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <div class="field">
+              <label for="body">Escrever mensagem</label>
+              <textarea id="body" name="body" rows="3" maxlength="1000" required placeholder="Alguém vai de carro por Cascais?"></textarea>
+            </div>
+            <button class="btn btn--secondary" type="submit">Publicar</button>
+          </form>
+        <% } else { %>
+          <p class="muted"><a href="/entrar">Inicia sessão</a> para deixares uma mensagem.</p>
+        <% } %>
+      </section>
+    </div>
+
+    <aside class="event-side">
+      <section class="panel panel--sticky" aria-labelledby="titulo-inscricao">
+        <h2 id="titulo-inscricao">A tua inscrição</h2>
+
+        <% if (!user) { %>
+          <p class="muted">Cria conta ou inicia sessão para te inscreveres neste passeio.</p>
+          <a class="btn btn--primary btn--block" href="/registar">Criar conta</a>
+          <a class="btn btn--ghost btn--block" href="/entrar">Entrar</a>
+        <% } else if (past) { %>
+          <p class="muted">Este passeio já aconteceu.</p>
+        <% } else { %>
+          <% if (isFull && myParticipation?.status !== 'going') { %>
+            <p class="alert alert--warning">As vagas estão esgotadas. Marca "Talvez" para ficares na lista de espera.</p>
+          <% } %>
+
+          <form class="form" method="post" action="/e/<%= event.slug %>/inscricao">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+            <div class="status-options">
+              <% ['going', 'maybe', 'out'].forEach((status) => { %>
+                <label class="status-option status-option--<%= status %>">
+                  <input type="radio" name="status" value="<%= status %>"
+                         <%= (myParticipation?.status || 'going') === status ? 'checked' : '' %>>
+                  <span><%= STATUS_LABELS[status] %></span>
+                </label>
+              <% }) %>
+            </div>
+
+            <div class="field">
+              <label for="note">Nota <span class="optional">(opcional)</span></label>
+              <input type="text" id="note" name="note" maxlength="200"
+                     value="<%= myParticipation?.note || '' %>" placeholder="Levo bomba e câmaras extra">
+            </div>
+
+            <button class="btn btn--primary btn--block" type="submit">
+              <%= myParticipation ? 'Actualizar inscrição' : 'Inscrever-me' %>
+            </button>
+          </form>
+
+          <% if (myParticipation) { %>
+            <form method="post" action="/e/<%= event.slug %>/inscricao/cancelar">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <button class="link-button" type="submit" data-confirm="Sair da lista deste passeio?">Sair da lista</button>
+            </form>
+          <% } %>
+        <% } %>
+      </section>
+
+      <section class="panel" aria-labelledby="titulo-partilha">
+        <h2 id="titulo-partilha">Link de partilha</h2>
+        <p class="muted">Envia este link a quem quiseres convidar.</p>
+
+        <div class="share">
+          <input class="share__input" type="text" value="<%= shareUrl %>" readonly aria-label="Link de partilha do passeio" data-share-input>
+          <button class="btn btn--secondary share__button" type="button" data-copy-button data-copy-target="[data-share-input]">Copiar</button>
+        </div>
+
+        <p class="share__hint" data-copy-feedback role="status"></p>
+
+        <% if (event.visibility === 'password') { %>
+          <p class="notice">Este passeio pede palavra-passe. Não te esqueças de a enviar junto com o link.</p>
+        <% } %>
+
+        <p class="share__native">
+          <button class="link-button" type="button" data-share-button data-share-title="<%= event.title %>" data-share-url="<%= shareUrl %>" hidden>Partilhar…</button>
+        </p>
+      </section>
+
+      <% if (isOwner) { %>
+        <section class="panel" aria-labelledby="titulo-gerir">
+          <h2 id="titulo-gerir">Gerir</h2>
+          <a class="btn btn--ghost btn--block" href="/e/<%= event.slug %>/editar">Editar passeio</a>
+          <form method="post" action="/e/<%= event.slug %>/apagar">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <button class="btn btn--danger btn--block" type="submit" data-confirm="Apagar este passeio? Inscrições e mensagens são apagadas também.">Apagar passeio</button>
+          </form>
+        </section>
+      <% } %>
+    </aside>
+  </div>
+</article>
+
+<%- include('../partials/footer') %>
