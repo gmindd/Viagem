@@ -1880,3 +1880,171 @@ a:hover {
     gap: var(--space-lg);
   }
 }
+
+/* ---------------------------- Material a levar ------------------------- */
+.gear-list {
+  display: grid;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+}
+
+.gear-category {
+  margin-top: var(--space-sm);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--color-muted);
+}
+
+.gear {
+  padding: var(--space-sm);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-left: 3px solid var(--color-accent);
+  border-radius: var(--radius-sm);
+  display: grid;
+  gap: var(--space-xs);
+}
+
+.gear--complete {
+  border-left-color: var(--color-success);
+}
+
+.gear__title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-xs);
+}
+
+.gear__name {
+  font-weight: 600;
+}
+
+.gear__count {
+  font-size: 0.78rem;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 0.05rem 0.55rem;
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
+  white-space: nowrap;
+}
+
+.gear__count--ok {
+  background: var(--color-success-soft);
+  color: var(--color-success);
+}
+
+.gear__notes {
+  font-size: 0.82rem;
+  color: var(--color-muted);
+}
+
+.gear__claims {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+}
+
+.gear__claim {
+  font-size: 0.8rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 0.1rem 0.5rem;
+}
+
+.gear__claim--mine {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+  font-weight: 600;
+}
+
+.gear__form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.gear__qty {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: 0.85rem;
+}
+
+.gear__qty input {
+  width: 4.5rem;
+  padding: 0.3rem 0.4rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+}
+
+.gear__qty-label {
+  font-weight: 600;
+}
+
+.gear__qty-max {
+  color: var(--color-muted);
+  font-size: 0.78rem;
+}
+
+.gear__note-input {
+  flex: 1;
+  min-width: 9rem;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  font-size: 0.85rem;
+}
+
+.gear__done {
+  font-size: 0.82rem;
+  color: var(--color-success);
+  font-weight: 600;
+}
+
+.gear__edit > summary {
+  cursor: pointer;
+  font-size: 0.8rem;
+  color: var(--color-muted);
+}
+
+.total--missing .total__value {
+  color: var(--color-accent);
+}
+
+.tag--mod {
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
+}
+
+/* Avisos do mural por email */
+.comment__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-top: var(--space-xs);
+}
+
+.comment__sent {
+  font-size: 0.78rem;
+  color: var(--color-success);
+  font-weight: 600;
+}
+
+.link-button--send {
+  color: var(--color-primary-dark);
+  font-weight: 600;
+}
+
+.link-button--send:hover {
+  color: var(--color-primary);
+}

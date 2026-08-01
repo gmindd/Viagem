@@ -29,6 +29,20 @@ export function requireMember(req, res, next) {
   return res.redirect(`/e/${req.event.slug}`);
 }
 
+/**
+ * Material e avisos: quem organiza e os moderadores.
+ * Não cobre definições da viagem nem gestão de participantes — isso continua
+ * a ser só de quem organiza.
+ */
+export function requireModerator(req, res, next) {
+  if (req.isModerator) return next();
+  return res.status(403).render('error', {
+    title: 'Sem permissão',
+    status: 403,
+    message: 'Só quem organiza a viagem e os moderadores podem fazer isto.'
+  });
+}
+
 /** Gestão da viagem: só quem a organiza. */
 export function requireOwner(req, res, next) {
   if (req.isOwner) return next();

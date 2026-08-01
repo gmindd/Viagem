@@ -200,6 +200,30 @@ export function joinDecisionEmail({ name, eventTitle, accepted, url, appName }) 
   };
 }
 
+/** Mensagem do mural reenviada a toda a gente por email. */
+export function muralEmail({ name, eventTitle, authorName, body, url, appName }) {
+  const html = layout({
+    appName,
+    title: `Aviso de ${eventTitle}`,
+    body: `
+      <p style="margin:0 0 12px;line-height:1.6;">Olá ${esc(name)},</p>
+      <p style="margin:0 0 12px;line-height:1.6;">
+        <strong>${esc(authorName)}</strong> escreveu no mural de
+        <strong>${esc(eventTitle)}</strong>:
+      </p>
+      <blockquote style="margin:0 0 12px;padding:12px 16px;background:#f6f7f5;border-left:3px solid #0f766e;line-height:1.6;white-space:pre-wrap;">${esc(body)}</blockquote>
+      ${button(url, 'Responder no mural')}`
+  });
+
+  const text = `${authorName} escreveu no mural de "${eventTitle}":
+
+${body}
+
+Responder: ${url}`;
+
+  return { subject: `${eventTitle}: mensagem de ${authorName}`, html, text };
+}
+
 /** Aviso aos participantes de que há datas para votar. */
 export function proposalsEmail({ name, eventTitle, count, url, appName }) {
   const html = layout({

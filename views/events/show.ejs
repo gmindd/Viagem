@@ -121,6 +121,7 @@
           </section>
 
           <%- include('../partials/event/routes') %>
+          <%- include('../partials/event/gear') %>
         <% } %>
 
         <%# Pedidos de adesão à espera, só para quem organiza %>
@@ -175,7 +176,8 @@
                     <span class="avatar" aria-hidden="true"><%= p.name.trim().charAt(0).toUpperCase() %></span>
                     <div class="participant__body">
                       <p class="participant__name">
-                        <%= p.name %><% if (p.user_id === owner.id) { %> <span class="tag">organiza</span><% } %>
+                        <%= p.name %><% if (p.user_id === owner.id) { %> <span class="tag">organiza</span>
+                        <% } else if (p.role === 'moderador') { %> <span class="tag tag--mod">moderador</span><% } %>
                       </p>
                       <% if (p.note) { %><p class="participant__note"><%= p.note %></p><% } %>
                       <% if (isOwner) { %>
@@ -187,11 +189,20 @@
                       <% } %>
                     </div>
                     <% if (isOwner && p.user_id !== owner.id) { %>
-                      <form method="post" action="/e/<%= event.slug %>/participantes/<%= p.user_id %>/remover">
-                        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-                        <button class="btn btn--ghost btn--sm" type="submit"
-                                data-confirm="Remover <%= p.name %> desta viagem?">Remover</button>
-                      </form>
+                      <div class="participant__actions">
+                        <form method="post" action="/e/<%= event.slug %>/participantes/<%= p.user_id %>/papel">
+                          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                          <input type="hidden" name="role" value="<%= p.role === 'moderador' ? 'membro' : 'moderador' %>">
+                          <button class="btn btn--ghost btn--sm" type="submit">
+                            <%= p.role === 'moderador' ? 'Retirar moderação' : 'Tornar moderador' %>
+                          </button>
+                        </form>
+                        <form method="post" action="/e/<%= event.slug %>/participantes/<%= p.user_id %>/remover">
+                          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                          <button class="btn btn--ghost btn--sm" type="submit"
+                                  data-confirm="Remover <%= p.name %> desta viagem?">Remover</button>
+                        </form>
+                      </div>
                     <% } %>
                   </li>
                 <% }) %>
@@ -218,12 +229,25 @@
                     <time class="comment__time"><%= formatDateTime(c.created_at) %></time>
                   </div>
                   <p class="comment__body"><%= c.body %></p>
-                  <% if (user && (user.id === c.author_id || isOwner)) { %>
-                    <form class="comment__actions" method="post" action="/e/<%= event.slug %>/comentarios/<%= c.id %>/apagar">
-                      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-                      <button class="link-button" type="submit" data-confirm="Apagar esta mensagem?">Apagar</button>
-                    </form>
-                  <% } %>
+                  <div class="comment__actions">
+                    <% if (c.emailed_at) { %>
+                      <span class="comment__sent">Enviada por email a <%= formatDateTime(c.emailed_at) %></span>
+                    <% } else if (isModerator) { %>
+                      <form method="post" action="/e/<%= event.slug %>/comentarios/<%= c.id %>/avisar">
+                        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                        <button class="link-button link-button--send" type="submit"
+                                data-confirm="Enviar esta mensagem por email a toda a gente da viagem?">
+                          Avisar toda a gente por email
+                        </button>
+                      </form>
+                    <% } %>
+                    <% if (user && (user.id === c.author_id || isOwner)) { %>
+                      <form method="post" action="/e/<%= event.slug %>/comentarios/<%= c.id %>/apagar">
+                        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                        <button class="link-button" type="submit" data-confirm="Apagar esta mensagem?">Apagar</button>
+                      </form>
+                    <% } %>
+                  </div>
                 </li>
               <% }) %>
             </ul>
@@ -237,6 +261,12 @@
               <label for="body">Escrever mensagem</label>
               <textarea id="body" name="body" rows="3" maxlength="1000" required
                         placeholder="Alguém vai de carro por Cascais?"></textarea>
+              <% if (isModerator) { %>
+                <p class="field-hint">
+                  Depois de publicares, podes carregar em "Avisar toda a gente por email"
+                  para a mensagem chegar à caixa de correio do grupo.
+                </p>
+              <% } %>
             </div>
             <button class="btn btn--secondary" type="submit">Publicar</button>
           </form>

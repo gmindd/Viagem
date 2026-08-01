@@ -73,6 +73,26 @@ número de participantes e como entrar. Ponto de encontro, percursos, mural,
 calendário e lista de participantes ficam reservados a membros. Os contactos
 de cada pessoa só o organizador os vê, e pode exportá-los em CSV.
 
+**Moderadores**
+- Quem organiza pode promover participantes a moderadores.
+- Moderadores gerem a lista de material e podem disparar avisos por email para
+  o grupo. Não mexem nas definições da viagem nem na lista de participantes —
+  isso continua a ser só de quem organiza.
+
+**Material a levar**
+- Lista com quantidades: *Bomba de ar manual: 1*, *Câmara de ar: 3*.
+- Cada pessoa assume quantas unidades leva. A app nunca deixa atribuir mais do
+  que o necessário: quem pedir 5 de um item onde faltam 2 fica com 2, e é
+  avisado disso.
+- Resumo no fim da secção com o que cada participante ficou de levar, e
+  contadores do que já está garantido e do que ainda falta.
+- Organizável por categorias (Mecânica, Cozinha, Primeiros socorros…).
+
+**Avisos do mural por email**
+- Qualquer participante escreve no mural. Quem organiza e os moderadores têm um
+  botão para reenviar essa mensagem por email a toda a gente da viagem.
+- A mensagem fica marcada como enviada, com data, para não sair duas vezes.
+
 **Inscrições e coordenação**
 - Cada pessoa marca *Vou* / *Talvez* / *Não vou*, com uma nota opcional.
 - Limite opcional de vagas, com bloqueio automático quando esgotam.

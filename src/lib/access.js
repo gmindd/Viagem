@@ -33,6 +33,17 @@ export function isMember(event, user) {
   return Boolean(findParticipation.get(event.id, user.id));
 }
 
+/**
+ * Pode ajudar a gerir: quem organiza, mais quem foi promovido a moderador.
+ * Moderadores mexem no material e avisam o grupo, mas não mexem nas
+ * definições da viagem nem na lista de participantes.
+ */
+export function isModerator(event, user) {
+  if (!user) return false;
+  if (isOwner(event, user)) return true;
+  return findParticipation.get(event.id, user.id)?.role === 'moderador';
+}
+
 /** A sessão acertou a palavra-passe deste evento. */
 export function hasPasswordUnlock(session, event) {
   return Boolean(session?.eventAccess?.[event.slug]);

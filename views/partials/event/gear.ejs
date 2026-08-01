@@ -1,0 +1,196 @@
+<section class="panel" id="material" aria-labelledby="titulo-material">
+  <h2 id="titulo-material">
+    Material a levar
+    <% if (gear.items.length) { %><span class="counter"><%= gear.items.length %></span><% } %>
+  </h2>
+
+  <% if (gear.items.length) { %>
+    <ul class="totals">
+      <li class="total">
+        <span class="total__value"><%= gear.totals.claimed %>/<%= gear.totals.needed %></span>
+        <span class="total__label">já garantido</span>
+      </li>
+      <li class="total<%= gear.totals.missing ? ' total--missing' : '' %>">
+        <span class="total__value"><%= gear.totals.missing %></span>
+        <span class="total__label">ainda por levar</span>
+      </li>
+      <li class="total">
+        <span class="total__value"><%= gear.byPerson.length %></span>
+        <span class="total__label">a contribuir</span>
+      </li>
+    </ul>
+
+    <ul class="gear-list">
+      <% let categoriaActual = null; %>
+      <% gear.items.forEach((item) => { %>
+        <% if (item.category !== categoriaActual) { categoriaActual = item.category; %>
+          <% if (item.category) { %>
+            <li class="gear-category"><%= item.category %></li>
+          <% } %>
+        <% } %>
+
+        <li class="gear<%= item.complete ? ' gear--complete' : '' %>">
+          <div class="gear__head">
+            <div class="gear__title-row">
+              <p class="gear__name"><%= item.name %></p>
+              <span class="gear__count<%= item.complete ? ' gear__count--ok' : '' %>">
+                <%= Math.min(item.claimed, item.quantity) %> de <%= item.quantity %>
+              </span>
+            </div>
+            <% if (item.notes) { %><p class="gear__notes"><%= item.notes %></p><% } %>
+          </div>
+
+          <% if (item.claims.length) { %>
+            <ul class="gear__claims">
+              <% item.claims.forEach((c) => { %>
+                <li class="gear__claim<%= user && c.user_id === user.id ? ' gear__claim--mine' : '' %>">
+                  <strong><%= c.quantity %>×</strong> <%= c.user_name %><% if (c.note) { %> <span class="muted">(<%= c.note %>)</span><% } %>
+                </li>
+              <% }) %>
+            </ul>
+          <% } %>
+
+          <%# Cada pessoa escolhe quantas unidades leva, até ao que falta %>
+          <form class="gear__form" method="post" action="/e/<%= event.slug %>/material/<%= item.id %>/levo">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+            <% if (item.quantity === 1) { %>
+              <% if (item.myQuantity) { %>
+                <input type="hidden" name="quantity" value="0">
+                <button class="btn btn--ghost btn--sm" type="submit">Afinal não levo</button>
+              <% } else if (item.complete) { %>
+                <span class="gear__done">Já há quem leve</span>
+              <% } else { %>
+                <input type="hidden" name="quantity" value="1">
+                <button class="btn btn--secondary btn--sm" type="submit">Eu levo</button>
+              <% } %>
+
+            <% } else if (item.maxForMe === 0) { %>
+              <%# Já está tudo atribuído a outros: o campo não serviria para nada %>
+              <span class="gear__done">Já está garantido pelo grupo</span>
+
+            <% } else { %>
+              <label class="gear__qty">
+                <span class="gear__qty-label">Levo</span>
+                <input type="number" name="quantity" min="0" max="<%= item.maxForMe %>" step="1"
+                       value="<%= item.myQuantity %>" inputmode="numeric"
+                       aria-label="Quantas unidades de <%= item.name %> levas">
+                <span class="gear__qty-max">
+                  <% if (item.myQuantity) { %>
+                    podes ir até <%= item.maxForMe %>
+                  <% } else { %>
+                    faltam <%= item.missing %>
+                  <% } %>
+                </span>
+              </label>
+              <input type="text" name="note" maxlength="160" value="<%= item.myNote %>"
+                     placeholder="Nota (opcional)" class="gear__note-input"
+                     aria-label="Nota sobre <%= item.name %>">
+              <button class="btn btn--secondary btn--sm" type="submit">Guardar</button>
+            <% } %>
+          </form>
+
+          <% if (isModerator) { %>
+            <details class="gear__edit">
+              <summary>Editar</summary>
+              <form class="form" method="post" action="/e/<%= event.slug %>/material/<%= item.id %>/editar">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <div class="field-row">
+                  <div class="field">
+                    <label for="gear-name-<%= item.id %>">Nome</label>
+                    <input type="text" id="gear-name-<%= item.id %>" name="name" value="<%= item.name %>" maxlength="120" required>
+                  </div>
+                  <div class="field">
+                    <label for="gear-qty-<%= item.id %>">Quantidade</label>
+                    <input type="number" id="gear-qty-<%= item.id %>" name="quantity" value="<%= item.quantity %>" min="1" step="1">
+                  </div>
+                </div>
+                <div class="field-row">
+                  <div class="field">
+                    <label for="gear-cat-<%= item.id %>">Categoria</label>
+                    <input type="text" id="gear-cat-<%= item.id %>" name="category" value="<%= item.category %>" maxlength="60">
+                  </div>
+                  <div class="field">
+                    <label for="gear-notes-<%= item.id %>">Notas</label>
+                    <input type="text" id="gear-notes-<%= item.id %>" name="notes" value="<%= item.notes %>" maxlength="300">
+                  </div>
+                </div>
+                <div class="form-actions">
+                  <button class="btn btn--secondary btn--sm" type="submit">Guardar alterações</button>
+                </div>
+              </form>
+              <form method="post" action="/e/<%= event.slug %>/material/<%= item.id %>/apagar">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <button class="link-button" type="submit"
+                        data-confirm="Remover <%= item.name %> da lista? As atribuições perdem-se.">Remover da lista</button>
+              </form>
+            </details>
+          <% } %>
+        </li>
+      <% }) %>
+    </ul>
+
+    <%# Resumo: o que cada pessoa fica encarregada de levar %>
+    <% if (gear.byPerson.length) { %>
+      <h3 class="participants__group">Quem leva o quê</h3>
+      <ul class="who-list">
+        <% gear.byPerson.forEach((p) => { %>
+          <li class="who">
+            <span class="avatar" aria-hidden="true"><%= p.name.trim().charAt(0).toUpperCase() %></span>
+            <div class="who__body">
+              <p class="who__name">
+                <%= p.name %>
+                <span class="who__count"><%= p.total %> item<%= p.total === 1 ? '' : 's' %></span>
+              </p>
+              <ul class="who__dates">
+                <% p.items.forEach((i) => { %>
+                  <li class="who__run-chip"><%= i.quantity %>× <%= i.name %></li>
+                <% }) %>
+              </ul>
+            </div>
+          </li>
+        <% }) %>
+      </ul>
+    <% } %>
+
+  <% } else { %>
+    <p class="muted">
+      Ainda não há lista de material.
+      <% if (isModerator) { %>Acrescenta o que é preciso levar e quantas unidades.<% } %>
+    </p>
+  <% } %>
+
+  <% if (isModerator) { %>
+    <details class="disclosure">
+      <summary>Acrescentar material</summary>
+      <form class="form" method="post" action="/e/<%= event.slug %>/material">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <div class="field-row">
+          <div class="field">
+            <label for="gear_name">O quê</label>
+            <input type="text" id="gear_name" name="name" maxlength="120" required
+                   placeholder="Câmara de ar">
+          </div>
+          <div class="field">
+            <label for="gear_quantity">Quantas</label>
+            <input type="number" id="gear_quantity" name="quantity" min="1" step="1" value="1"
+                   inputmode="numeric">
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="gear_category">Categoria <span class="optional">(opcional)</span></label>
+            <input type="text" id="gear_category" name="category" maxlength="60"
+                   placeholder="Mecânica, Cozinha, Primeiros socorros…">
+          </div>
+          <div class="field">
+            <label for="gear_notes">Notas <span class="optional">(opcional)</span></label>
+            <input type="text" id="gear_notes" name="notes" maxlength="300"
+                   placeholder="Válvula Presta, 700x32">
+          </div>
+        </div>
+        <button class="btn btn--secondary" type="submit">Acrescentar</button>
+      </form>
+    </details>
+  <% } %>
+</section>

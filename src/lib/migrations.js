@@ -282,6 +282,51 @@ MIGRATIONS.push({
   }
 });
 
+MIGRATIONS.push({
+  version: 5,
+  name: 'Moderadores, checklist de material e avisos do mural por email',
+  up(db) {
+    /* --- Moderadores --------------------------------------------- */
+    // 'membro' ou 'moderador'. Quem organiza é identificado por events.owner_id
+    // e não precisa de papel próprio — teria de ser mantido em dois sítios.
+    addColumn(db, 'participants', 'role', "TEXT NOT NULL DEFAULT 'membro'");
+
+    /* --- Material a levar ----------------------------------------- */
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS gear_items (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        event_id   INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+        name       TEXT    NOT NULL,
+        quantity   INTEGER NOT NULL DEFAULT 1,
+        notes      TEXT    NOT NULL DEFAULT '',
+        category   TEXT    NOT NULL DEFAULT '',
+        created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        position   INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT    NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE INDEX IF NOT EXISTS idx_gear_event ON gear_items(event_id);
+
+      CREATE TABLE IF NOT EXISTS gear_claims (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        item_id    INTEGER NOT NULL REFERENCES gear_items(id) ON DELETE CASCADE,
+        user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        quantity   INTEGER NOT NULL DEFAULT 1,
+        note       TEXT    NOT NULL DEFAULT '',
+        created_at TEXT    NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT    NOT NULL DEFAULT (datetime('now')),
+        UNIQUE(item_id, user_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_claims_item ON gear_claims(item_id);
+    `);
+
+    /* --- Avisos do mural por email -------------------------------- */
+    // Regista quando a mensagem foi enviada, para o botão não reenviar
+    // por engano e para se ver na página que já saiu.
+    addColumn(db, 'comments', 'emailed_at', 'TEXT');
+    addColumn(db, 'comments', 'emailed_by', 'INTEGER REFERENCES users(id) ON DELETE SET NULL');
+  }
+});
+
 export const LATEST_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;
 
 /* ------------------------------------------------------------------ */

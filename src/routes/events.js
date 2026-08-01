@@ -2,7 +2,7 @@ import express from 'express';
 import bcrypt from 'bcryptjs';
 import { db } from '../lib/db.js';
 import { requireAuth } from '../middleware/auth.js';
-import { requireOpen, requireMember, requireOwner } from '../middleware/event-guards.js';
+import { requireOpen, requireMember, requireOwner, requireModerator } from '../middleware/event-guards.js';
 import {
   generateSlug,
   cleanText,
@@ -19,13 +19,16 @@ import {
 import {
   isOwner as checkOwner,
   isMember as checkMember,
+  isModerator as checkModerator,
   canOpen,
   joinOptionFor,
   joinRequestFor
 } from '../lib/access.js';
 import { listPendingForOwner } from '../lib/notifications.js';
+import { sendEmail, muralEmail } from '../lib/email.js';
 import { router as availabilityRouter, buildAvailability } from './availability.js';
 import { router as proposalsRouter, buildProposals, suggestBlocks } from './proposals.js';
+import { router as gearRouter, buildGear } from './gear.js';
 import {
   router as gpxRouter,
   gpxUploadErrorHandler,
@@ -108,7 +111,7 @@ const listPublicEvents = db.prepare(
 );
 
 const listParticipants = db.prepare(
-  `SELECT p.status, p.note, p.created_at, p.joined_via,
+  `SELECT p.status, p.note, p.created_at, p.joined_via, p.role,
           u.id AS user_id, u.name, u.email, u.phone, u.contact_other
    FROM participants p JOIN users u ON u.id = p.user_id
    WHERE p.event_id = ?
@@ -134,9 +137,16 @@ const addOwnerAsParticipant = db.prepare(
 const removeParticipation = db.prepare('DELETE FROM participants WHERE event_id = ? AND user_id = ?');
 
 const listComments = db.prepare(
-  `SELECT c.id, c.body, c.created_at, u.name AS author_name, u.id AS author_id
+  `SELECT c.id, c.body, c.created_at, c.emailed_at, u.name AS author_name, u.id AS author_id
    FROM comments c JOIN users u ON u.id = c.user_id
    WHERE c.event_id = ? ORDER BY c.created_at ASC`
+);
+const markEmailed = db.prepare(
+  "UPDATE comments SET emailed_at = datetime('now'), emailed_by = ? WHERE id = ?"
+);
+const listMemberEmails = db.prepare(
+  `SELECT u.id, u.name, u.email FROM participants p JOIN users u ON u.id = p.user_id
+   WHERE p.event_id = ? AND u.id != ?`
 );
 const insertComment = db.prepare('INSERT INTO comments (event_id, user_id, body) VALUES (?, ?, ?)');
 const findComment = db.prepare('SELECT * FROM comments WHERE id = ?');
@@ -165,6 +175,7 @@ function loadEvent(req, res, next) {
   req.event = event;
   req.isOwner = checkOwner(event, req.user);
   req.isMember = checkMember(event, req.user);
+  req.isModerator = checkModerator(event, req.user);
   return next();
 }
 
@@ -294,6 +305,10 @@ router.get('/e/:slug', loadEvent, requireOpen, (req, res) => {
     totals: routeTotals.get(event.id),
     availability,
     proposals: req.isMember ? buildProposals(event, req.user) : { active: false, proposals: [] },
+    gear: req.isMember
+      ? buildGear(event, req.user)
+      : { active: false, items: [], byPerson: [], totals: { needed: 0, claimed: 0, missing: 0 } },
+    isModerator: req.isModerator,
     suggestions: req.isOwner && availability.active ? suggestBlocks(event, availability.byDate) : [],
     pendingRequests: req.isOwner ? listPendingRequests.all(event.id) : [],
     shareUrl: `${req.appBaseUrl}/e/${event.slug}`
@@ -325,6 +340,38 @@ router.post('/e/:slug/estado', loadEvent, requireAuth, requireOpen, requireMembe
   return res.redirect(`/e/${event.slug}#participantes`);
 });
 
+/* --- Moderadores --------------------------------------------------- */
+
+const setRole = db.prepare(
+  'UPDATE participants SET role = ? WHERE event_id = ? AND user_id = ?'
+);
+
+router.post('/e/:slug/participantes/:userId/papel', loadEvent, requireAuth, requireOwner, (req, res) => {
+  const { event } = req;
+  const userId = Number(req.params.userId);
+  const role = req.body.role === 'moderador' ? 'moderador' : 'membro';
+
+  // Quem organiza não é promovido nem despromovido: o papel dele vem do
+  // dono da viagem, não desta coluna.
+  if (userId === event.owner_id) {
+    res.flash('error', 'Quem organiza já tem todas as permissões.');
+    return res.redirect(`/e/${event.slug}#participantes`);
+  }
+
+  const participation = getParticipation.get(event.id, userId);
+  if (!participation) {
+    res.flash('error', 'Essa pessoa não faz parte da viagem.');
+    return res.redirect(`/e/${event.slug}#participantes`);
+  }
+
+  setRole.run(role, event.id, userId);
+  res.flash(
+    'success',
+    role === 'moderador' ? 'Passou a moderador da viagem.' : 'Deixou de ser moderador.'
+  );
+  return res.redirect(`/e/${event.slug}#participantes`);
+});
+
 router.post('/e/:slug/participantes/:userId/remover', loadEvent, requireAuth, requireOwner, (req, res) => {
   removeParticipation.run(req.event.id, Number(req.params.userId));
   res.flash('success', 'Participante removido.');
@@ -333,9 +380,9 @@ router.post('/e/:slug/participantes/:userId/remover', loadEvent, requireAuth, re
 
 router.get('/e/:slug/participantes.csv', loadEvent, requireAuth, requireOwner, (req, res) => {
   const rows = listParticipants.all(req.event.id);
-  const header = ['Nome', 'Email', 'Telemóvel', 'Outro contacto', 'Estado', 'Entrou por', 'Nota'];
+  const header = ['Nome', 'Email', 'Telemóvel', 'Outro contacto', 'Estado', 'Papel', 'Entrou por', 'Nota'];
   const csv = [header, ...rows.map((r) => [
-    r.name, r.email, r.phone, r.contact_other, r.status, r.joined_via, r.note
+    r.name, r.email, r.phone, r.contact_other, r.status, r.role, r.joined_via, r.note
   ])]
     .map((cols) => cols.map(csvCell).join(','))
     .join('\r\n');
@@ -355,6 +402,62 @@ router.post('/e/:slug/comentarios', loadEvent, requireAuth, requireOpen, require
   else res.flash('error', 'A mensagem estava vazia.');
   return res.redirect(`/e/${req.event.slug}#mural`);
 });
+
+/**
+ * Reenvia uma mensagem do mural a toda a gente por email.
+ * Reservado a quem organiza e aos moderadores: se qualquer pessoa pudesse
+ * disparar emails para o grupo todo, o mural passava a caixa de correio.
+ */
+router.post('/e/:slug/comentarios/:id/avisar', loadEvent, requireAuth, requireOpen, requireModerator,
+  async (req, res) => {
+    const { event } = req;
+    const comment = findComment.get(Number(req.params.id));
+
+    if (!comment || comment.event_id !== event.id) {
+      res.flash('error', 'Essa mensagem já não existe.');
+      return res.redirect(`/e/${event.slug}#mural`);
+    }
+    if (comment.emailed_at) {
+      res.flash('error', 'Essa mensagem já foi enviada por email.');
+      return res.redirect(`/e/${event.slug}#mural`);
+    }
+
+    const author = getOwner.get(comment.user_id);
+    const recipients = listMemberEmails.all(event.id, req.user.id);
+    const url = `${req.appBaseUrl}/e/${event.slug}#mural`;
+
+    const results = await Promise.all(
+      recipients.map((m) =>
+        sendEmail({
+          to: m.email,
+          ...muralEmail({
+            name: m.name,
+            eventTitle: event.title,
+            authorName: author?.name ?? 'Alguém',
+            body: comment.body,
+            url,
+            appName: req.app.locals.appName
+          })
+        })
+      )
+    );
+
+    const skipped = results.some((r) => r.skipped);
+    const sent = results.filter((r) => r.sent).length;
+
+    if (skipped) {
+      res.flash('error', 'O envio de emails não está configurado neste servidor.');
+    } else {
+      // Só se marca como enviada quando saiu mesmo, para o botão continuar
+      // disponível se o envio falhou por completo.
+      if (sent > 0) markEmailed.run(req.user.id, comment.id);
+      res.flash(
+        sent === recipients.length ? 'success' : 'error',
+        `Avisámos ${sent} de ${recipients.length} participantes.`
+      );
+    }
+    return res.redirect(`/e/${event.slug}#mural`);
+  });
 
 router.post('/e/:slug/comentarios/:id/apagar', loadEvent, requireAuth, (req, res) => {
   const comment = findComment.get(Number(req.params.id));
@@ -434,6 +537,7 @@ router.use('/e/:slug', eventContext, membershipOwnerRouter);
 router.use('/e/:slug', eventContext, membershipRouter);
 router.use('/e/:slug', eventContext, availabilityRouter);
 router.use('/e/:slug', eventContext, proposalsRouter);
+router.use('/e/:slug', eventContext, gearRouter);
 router.use('/e/:slug', eventContext, gpxRouter, gpxUploadErrorHandler);
 
 // Entrada por convite: o token identifica a viagem
