@@ -1,7 +1,7 @@
 import express from 'express';
 import { db } from '../lib/db.js';
 import { requireOpen, requireMember, requireModerator } from '../middleware/event-guards.js';
-import { cleanText, toNumberOrNull } from '../lib/helpers.js';
+import { cleanText, toNumberOrNull, familyColour } from '../lib/helpers.js';
 
 export const router = express.Router({ mergeParams: true });
 
@@ -45,16 +45,36 @@ const deleteClaim = db.prepare('DELETE FROM gear_claims WHERE item_id = ? AND us
 const claimedByOthers = db.prepare(
   'SELECT COALESCE(SUM(quantity), 0) AS n FROM gear_claims WHERE item_id = ? AND user_id != ?'
 );
+const currentClaim = db.prepare(
+  'SELECT quantity FROM gear_claims WHERE item_id = ? AND user_id = ?'
+);
+
+const SEM_FAMILIA = 'Sem família';
+
+// O cinzento (última cor) fica reservado para o material sem família:
+// deixado ao acaso, calhava-lhe o vermelho, que se lê como aviso de erro.
+const COR_SEM_FAMILIA = 8;
+
+/** Cor da família, com o cinzento reservado para "Sem família". */
+function colourFor(family) {
+  return family === SEM_FAMILIA ? COR_SEM_FAMILIA : familyColour(family);
+}
 
 /**
- * Reúne a lista de material com o que já está atribuído, e o resumo do que
- * cada pessoa leva. A soma do que falta é calculada aqui e não na vista,
- * para a página não ter de repetir a mesma conta em três sítios.
+ * Reúne a lista de material por família, com um "balão" por unidade que ainda
+ * falta atribuir, e o resumo do que cada pessoa leva.
+ *
+ * A unidade — e não o item — é a coisa com que se interage: três câmaras de ar
+ * são três balões, e cada clique tira um da lista. É isso que torna óbvio o
+ * que falta, sem ninguém ter de fazer contas de cabeça.
  */
 export function buildGear(event, user) {
   const items = listItems.all(event.id);
   if (!items.length) {
-    return { active: false, items: [], byPerson: [], totals: { needed: 0, claimed: 0, missing: 0 } };
+    return {
+      active: false, items: [], families: [], byPerson: [],
+      totals: { needed: 0, claimed: 0, missing: 0 }
+    };
   }
 
   const claims = listClaims.all(event.id);
@@ -63,7 +83,6 @@ export function buildGear(event, user) {
 
   for (const claim of claims) {
     byItem.get(claim.item_id)?.push(claim);
-
     if (!byPerson.has(claim.user_id)) {
       byPerson.set(claim.user_id, { id: claim.user_id, name: claim.user_name, items: [], total: 0 });
     }
@@ -73,26 +92,56 @@ export function buildGear(event, user) {
     const itemClaims = byItem.get(item.id) ?? [];
     const claimed = itemClaims.reduce((sum, c) => sum + c.quantity, 0);
     const mine = user ? itemClaims.find((c) => c.user_id === user.id) : null;
+    const family = item.category.trim() || SEM_FAMILIA;
 
-    // Preenche o resumo por pessoa enquanto se percorre
     for (const claim of itemClaims) {
       const person = byPerson.get(claim.user_id);
-      person.items.push({ name: item.name, quantity: claim.quantity, note: claim.note });
+      person.items.push({
+        itemId: item.id,
+        name: item.name,
+        quantity: claim.quantity,
+        note: claim.note,
+        family,
+        colour: colourFor(family)
+      });
       person.total += claim.quantity;
     }
 
     return {
       ...item,
+      family,
+      colour: colourFor(family),
       claims: itemClaims,
       claimed,
       missing: Math.max(0, item.quantity - claimed),
       complete: claimed >= item.quantity,
-      myQuantity: mine?.quantity ?? 0,
-      myNote: mine?.note ?? '',
-      // Quanto é que esta pessoa pode ainda assumir sem passar do necessário
-      maxForMe: Math.max(0, item.quantity - (claimed - (mine?.quantity ?? 0)))
+      myQuantity: mine?.quantity ?? 0
     };
   });
+
+  // Agrupa por família, preservando a ordem em que as famílias aparecem
+  const families = new Map();
+  for (const item of decorated) {
+    if (!families.has(item.family)) {
+      families.set(item.family, {
+        name: item.family,
+        colour: item.colour,
+        items: [],
+        units: [],
+        missing: 0,
+        needed: 0
+      });
+    }
+    const family = families.get(item.family);
+    family.items.push(item);
+    family.needed += item.quantity;
+    family.missing += item.missing;
+
+    // Um balão por unidade ainda por atribuir
+    for (let i = 0; i < item.missing; i += 1) {
+      family.units.push({ itemId: item.id, name: item.name, notes: item.notes });
+    }
+  }
 
   const totals = decorated.reduce(
     (acc, i) => ({
@@ -103,10 +152,21 @@ export function buildGear(event, user) {
     { needed: 0, claimed: 0, missing: 0 }
   );
 
+  // Ordena as pessoas por quantidade, e as suas coisas por família
+  const people = [...byPerson.values()]
+    .map((p) => ({ ...p, items: p.items.sort((a, b) => a.family.localeCompare(b.family)) }))
+    .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
+
   return {
     active: true,
     items: decorated,
-    byPerson: [...byPerson.values()].sort((a, b) => b.total - a.total || a.name.localeCompare(b.name)),
+    families: [...families.values()].sort((a, b) => {
+      // "Sem família" fica sempre no fim
+      if (a.name === SEM_FAMILIA) return 1;
+      if (b.name === SEM_FAMILIA) return -1;
+      return a.name.localeCompare(b.name);
+    }),
+    byPerson: people,
     totals
   };
 }
@@ -186,13 +246,22 @@ router.post('/material/:id/levo', requireOpen, requireMember, (req, res) => {
     return res.redirect(`/e/${event.slug}#material`);
   }
 
-  const wanted = clampQuantity(toNumberOrNull(req.body.quantity) ?? 1);
+  const current = currentClaim.get(item.id, req.user.id)?.quantity ?? 0;
+  const delta = toNumberOrNull(req.body.delta);
+
+  // Clicar num balão soma ou devolve uma unidade. Usa-se a diferença e não o
+  // total para o clique não depender do valor que estava na página quando ela
+  // foi desenhada — duas pessoas a clicar ao mesmo tempo não se atropelam.
+  const wanted = delta !== null
+    ? clampQuantity(current + Math.trunc(delta))
+    : clampQuantity(toNumberOrNull(req.body.quantity) ?? 1);
+
   const note = cleanText(req.body.note, 160);
 
   // Zero significa "afinal não levo"
   if (wanted <= 0) {
     deleteClaim.run(item.id, req.user.id);
-    res.flash('success', `Deixaste de levar ${item.name}.`);
+    res.flash('success', `Devolveste ${item.name} à lista.`);
     return res.redirect(`/e/${event.slug}#material`);
   }
 
@@ -212,7 +281,7 @@ router.post('/material/:id/levo', requireOpen, requireMember, (req, res) => {
     'success',
     quantity < wanted
       ? `Ficaste com ${quantity} × ${item.name} — era só o que faltava.`
-      : `Ficaste com ${quantity} × ${item.name}.`
+      : `${item.name}: ficaste com ${quantity}.`
   );
   return res.redirect(`/e/${event.slug}#material`);
 });

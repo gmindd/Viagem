@@ -1881,150 +1881,6 @@ a:hover {
   }
 }
 
-/* ---------------------------- Material a levar ------------------------- */
-.gear-list {
-  display: grid;
-  gap: var(--space-sm);
-  margin-bottom: var(--space-md);
-}
-
-.gear-category {
-  margin-top: var(--space-sm);
-  font-size: 0.78rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  color: var(--color-muted);
-}
-
-.gear {
-  padding: var(--space-sm);
-  background: var(--color-bg);
-  border: 1px solid var(--color-border);
-  border-left: 3px solid var(--color-accent);
-  border-radius: var(--radius-sm);
-  display: grid;
-  gap: var(--space-xs);
-}
-
-.gear--complete {
-  border-left-color: var(--color-success);
-}
-
-.gear__title-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-xs);
-}
-
-.gear__name {
-  font-weight: 600;
-}
-
-.gear__count {
-  font-size: 0.78rem;
-  font-weight: 700;
-  border-radius: 999px;
-  padding: 0.05rem 0.55rem;
-  background: var(--color-warning-soft);
-  color: var(--color-warning);
-  white-space: nowrap;
-}
-
-.gear__count--ok {
-  background: var(--color-success-soft);
-  color: var(--color-success);
-}
-
-.gear__notes {
-  font-size: 0.82rem;
-  color: var(--color-muted);
-}
-
-.gear__claims {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-xs);
-}
-
-.gear__claim {
-  font-size: 0.8rem;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  padding: 0.1rem 0.5rem;
-}
-
-.gear__claim--mine {
-  border-color: var(--color-accent);
-  color: var(--color-accent);
-  font-weight: 600;
-}
-
-.gear__form {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-xs);
-}
-
-.gear__qty {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-xs);
-  font-size: 0.85rem;
-}
-
-.gear__qty input {
-  width: 4.5rem;
-  padding: 0.3rem 0.4rem;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface);
-}
-
-.gear__qty-label {
-  font-weight: 600;
-}
-
-.gear__qty-max {
-  color: var(--color-muted);
-  font-size: 0.78rem;
-}
-
-.gear__note-input {
-  flex: 1;
-  min-width: 9rem;
-  padding: 0.3rem 0.5rem;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface);
-  font-size: 0.85rem;
-}
-
-.gear__done {
-  font-size: 0.82rem;
-  color: var(--color-success);
-  font-weight: 600;
-}
-
-.gear__edit > summary {
-  cursor: pointer;
-  font-size: 0.8rem;
-  color: var(--color-muted);
-}
-
-.total--missing .total__value {
-  color: var(--color-accent);
-}
-
-.tag--mod {
-  background: var(--color-warning-soft);
-  color: var(--color-warning);
-}
-
 /* Avisos do mural por email */
 .comment__actions {
   display: flex;
@@ -2047,4 +1903,223 @@ a:hover {
 
 .link-button--send:hover {
   color: var(--color-primary);
+}
+
+/* =========================================================================
+   Material a levar — balões por unidade, agrupados por família
+   ========================================================================= */
+
+/* Uma cor por família. O índice é calculado a partir do nome da família,
+   para a mesma família ficar sempre com a mesma cor sem ser preciso guardá-la. */
+.family--1 { --family-ink: #0f766e; --family-bg: #e6f2f0; --family-edge: #99cfc8; }
+.family--2 { --family-ink: #b45309; --family-bg: #fdf3e3; --family-edge: #f0cd94; }
+.family--3 { --family-ink: #6d28d9; --family-bg: #f1ebfd; --family-edge: #c9b3f5; }
+.family--4 { --family-ink: #15803d; --family-bg: #e9f7ed; --family-edge: #a5d9b6; }
+.family--5 { --family-ink: #b42318; --family-bg: #fdeceb; --family-edge: #f2b3ae; }
+.family--6 { --family-ink: #0369a1; --family-bg: #e6f2fa; --family-edge: #a3cde8; }
+.family--7 { --family-ink: #a21caf; --family-bg: #fbeafb; --family-edge: #eab3ef; }
+.family--8 { --family-ink: #4d4d4d; --family-bg: #f0f0f0; --family-edge: #c4c4c4; }
+
+.family {
+  margin-top: var(--space-md);
+  padding: var(--space-sm) var(--space-sm) var(--space-md);
+  border-radius: var(--radius-md);
+  background: var(--family-bg, var(--color-bg));
+  border: 1px solid var(--family-edge, var(--color-border));
+  border-left-width: 5px;
+}
+
+.family__title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-sm);
+  font-size: 0.82rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--family-ink, var(--color-text));
+}
+
+.family__dot {
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  background: var(--family-ink, var(--color-muted));
+  flex-shrink: 0;
+}
+
+.family__count {
+  margin-left: auto;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+  background: var(--color-surface);
+  border-radius: 999px;
+  padding: 0.05rem 0.5rem;
+}
+
+.family__done {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--family-ink, var(--color-success));
+  opacity: 0.85;
+}
+
+/* --------------------------- Balões clicáveis -------------------------- */
+.chips-pool {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+}
+
+.chips-pool form {
+  display: contents;
+}
+
+.gear-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.45rem 0.85rem;
+  border-radius: 999px;
+  border: 1.5px solid var(--family-edge, var(--color-border));
+  background: var(--color-surface);
+  color: var(--family-ink, var(--color-text));
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1.2;
+  cursor: pointer;
+  transition: transform 0.08s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+}
+
+.gear-chip:hover {
+  background: var(--family-ink, var(--color-primary));
+  border-color: var(--family-ink, var(--color-primary));
+  color: #fff;
+  box-shadow: var(--shadow-sm);
+}
+
+.gear-chip:active {
+  transform: scale(0.96);
+}
+
+.gear-chip__plus {
+  font-weight: 800;
+  opacity: 0.65;
+}
+
+.gear-chip:hover .gear-chip__plus {
+  opacity: 1;
+}
+
+/* Os que já são meus: preenchidos, com um × para os devolver */
+.gear-chip--mine {
+  background: var(--family-ink, var(--color-primary));
+  border-color: var(--family-ink, var(--color-primary));
+  color: #fff;
+}
+
+.gear-chip--mine:hover {
+  background: var(--color-danger);
+  border-color: var(--color-danger);
+  color: #fff;
+}
+
+.gear-chip__x {
+  font-weight: 800;
+  opacity: 0.7;
+}
+
+.gear-chip--mine:hover .gear-chip__x {
+  opacity: 1;
+}
+
+/* Os que são de outra pessoa: só informativos */
+.gear-chip--taken {
+  cursor: default;
+  background: var(--family-bg, var(--color-bg));
+  border-style: dashed;
+  font-weight: 500;
+}
+
+.chips-pool--mine {
+  margin-top: var(--space-xs);
+}
+
+/* ------------------------- Acrescentar e gerir ------------------------- */
+.gear-add {
+  margin-top: var(--space-lg);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--color-border);
+}
+
+.gear-add__row {
+  display: grid;
+  gap: var(--space-sm);
+  align-items: end;
+}
+
+.field--narrow input {
+  max-width: 7rem;
+}
+
+.gear-manage {
+  display: grid;
+  gap: var(--space-xs);
+}
+
+.gear-manage__item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-xs);
+  background: var(--color-bg);
+  border-radius: var(--radius-sm);
+}
+
+.gear-manage__form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xs);
+  flex: 1;
+}
+
+.gear-manage__form input[type="text"] {
+  flex: 1;
+  min-width: 7rem;
+}
+
+.gear-manage__form input[type="number"] {
+  width: 4.5rem;
+}
+
+.gear-manage__form input {
+  padding: 0.3rem 0.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  font-size: 0.85rem;
+}
+
+.gear-manage__item .link-button {
+  margin-top: 0;
+}
+
+.total--missing .total__value {
+  color: var(--color-accent);
+}
+
+.tag--mod {
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
+}
+
+@media (min-width: 40rem) {
+  .gear-add__row {
+    grid-template-columns: 2fr 1.5fr auto auto;
+  }
 }

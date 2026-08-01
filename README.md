@@ -80,13 +80,15 @@ de cada pessoa só o organizador os vê, e pode exportá-los em CSV.
   isso continua a ser só de quem organiza.
 
 **Material a levar**
-- Lista com quantidades: *Bomba de ar manual: 1*, *Câmara de ar: 3*.
-- Cada pessoa assume quantas unidades leva. A app nunca deixa atribuir mais do
-  que o necessário: quem pedir 5 de um item onde faltam 2 fica com 2, e é
-  avisado disso.
-- Resumo no fim da secção com o que cada participante ficou de levar, e
-  contadores do que já está garantido e do que ainda falta.
-- Organizável por categorias (Mecânica, Cozinha, Primeiros socorros…).
+- Acrescenta-se pelo artigo, família e quantidade: *Câmara de ar · Mecânica · 3*.
+- Cada unidade por atribuir aparece como um **balão clicável**. Três câmaras de
+  ar são três balões; clicar num deles tira-o da lista e passa a ser teu.
+- Os teus balões ficam preenchidos, com um × para os devolveres à lista. Os dos
+  outros aparecem a tracejado, só para consulta.
+- Os balões são agrupados por **família**, cada uma com a sua cor — atribuída a
+  partir do nome, por isso a mesma família fica sempre com a mesma cor.
+- Resumo no fim com o que cada participante ficou de levar, e contadores do que
+  já está garantido e do que falta atribuir.
 
 **Avisos do mural por email**
 - Qualquer participante escreve no mural. Quem organiza e os moderadores têm um

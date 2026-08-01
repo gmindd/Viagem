@@ -265,6 +265,25 @@ const MONTHS_LONG_PT = [
 
 export const WEEKDAY_INITIALS_PT = ['S', 'T', 'Q', 'Q', 'S', 'S', 'D'];
 
+/** Quantas cores há para distinguir famílias de material. */
+export const FAMILY_COLOURS = 8;
+
+/**
+ * Escolhe uma cor para uma família de material a partir do nome.
+ * É determinística — a mesma família fica sempre com a mesma cor, mesmo
+ * depois de acrescentar ou remover items — e não precisa de ser guardada.
+ */
+export function familyColour(name) {
+  const key = String(name || '').trim().toLowerCase();
+  if (!key) return 0;
+
+  let hash = 0;
+  for (let i = 0; i < key.length; i += 1) {
+    hash = (hash * 31 + key.charCodeAt(i)) % 100000;
+  }
+  return (hash % FAMILY_COLOURS) + 1;
+}
+
 /** Soma dias a uma data ISO, em UTC para não sofrer com fusos. */
 export function addDays(isoDate, days) {
   const d = new Date(`${isoDate}T00:00:00Z`);
